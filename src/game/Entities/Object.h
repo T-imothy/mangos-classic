@@ -712,13 +712,13 @@ enum MovementFlags
     MOVEFLAG_WALK_MODE          = 0x00000100,               // Walking
 
     MOVEFLAG_LEVITATING         = 0x00000400,
-    MOVEFLAG_FLYING             = 0x00000800,               // Fixed Z in the Vanilla client
+    MOVEFLAG_FLYING             = 0x00000800,               // [-ZERO] is it really need and correct value
     MOVEFLAG_JUMPING            = 0x00002000,
     MOVEFLAG_FALLINGFAR         = 0x00004000,
     MOVEFLAG_SWIMMING           = 0x00200000,               // appears with fly flag also
     MOVEFLAG_SPLINE_ENABLED     = 0x00400000,               // [-ZERO] is it really need and correct value
-    MOVEFLAG_CAN_FLY            = 0x00800000,               // Moved in the Vanilla client
-    MOVEFLAG_FLYING_OLD         = 0x01000000,               // Flying in the Vanilla client
+    MOVEFLAG_CAN_FLY            = 0x00800000,               // [-ZERO] is it really need and correct value
+    MOVEFLAG_FLYING_OLD         = 0x01000000,               // [-ZERO] is it really need and correct value
 
     MOVEFLAG_ONTRANSPORT        = 0x02000000,               // Used for flying on some creatures
     MOVEFLAG_SPLINE_ELEVATION   = 0x04000000,               // used for flight paths
