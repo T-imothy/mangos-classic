@@ -1713,6 +1713,9 @@ class Player : public Unit
         bool IsLaunched() const { return m_launched; }
         void SetLaunched(bool apply) { m_launched = apply; }
 
+        void SetCheatFly(bool on);
+        bool HasCheatFly() const { return m_cheatFly; }
+
         WorldLocation& GetTeleportDest() { return m_teleport_dest; }
         bool IsBeingTeleported() const { return m_semaphoreTeleport_Near || m_semaphoreTeleport_Far; }
         bool IsBeingTeleportedNear() const { return m_semaphoreTeleport_Near; }
@@ -2032,9 +2035,9 @@ class Player : public Unit
         bool isMovingOrTurning() const { return m_movementInfo.HasMovementFlag(movementOrTurningFlagsMask); }
 
         bool CanSwim() const override { return true; }
-        bool CanFly() const override { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING); }
+        bool CanFly() const override { return m_movementInfo.HasMovementFlag(MOVEFLAG_FLYING_OLD); }
         bool CanWalk() const override { return true; }
-        bool IsFlying() const override { return false; }
+        bool IsFlying() const override { return CanFly(); }
         bool IsFreeFlying() const { return false; }
         bool IsSwimming() const { return m_movementInfo.HasMovementFlag(MOVEFLAG_SWIMMING); }
 
@@ -2552,6 +2555,7 @@ class Player : public Unit
         int32 m_cannotBeDetectedTimer;
 
         bool m_launched;
+        bool m_cheatFly;
 
         Spell* m_modsSpell;
         std::set<SpellModifierPair>* m_consumedMods;

@@ -5449,7 +5449,7 @@ bool ChatHandler::HandleGMFlyCommand(char* args)
     if (!target)
         target = m_session->GetPlayer();
 
-    target->SetCanFly(value);
+    target->SetCheatFly(value);
     PSendSysMessage(LANG_COMMAND_FLYMODE_STATUS, GetNameLink(target).c_str(), args);
     return true;
 }
