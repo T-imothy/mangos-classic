@@ -104,7 +104,7 @@ WorldSession::WorldSession(uint32 id, WorldSocket* sock, AccountTypes sec, time_
     m_clientOS(CLIENT_OS_UNKNOWN), m_clientPlatform(CLIENT_PLATFORM_UNKNOWN), m_orderCounter(0),
     _logoutTime(0), m_afkTime(0), m_playerSave(true), m_inQueue(false), m_playerLoading(false), m_kickSession(false), m_playerLogout(false), m_playerRecentlyLogout(false),
     m_sessionDbcLocale(sWorld.GetAvailableDbcLocale(locale)), m_sessionDbLocaleIndex(sObjectMgr.GetStorageLocaleIndexFor(locale)),
-    m_latency(0), m_clientTimeDelay(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
+    m_latency(0), m_clientTimeDelay(0), m_movementPacketRejectUntil(0), m_tutorialState(TUTORIALDATA_UNCHANGED)
     {}
 
 /// WorldSession destructor
@@ -1235,6 +1235,13 @@ void WorldSession::SynchronizeMovement(MovementInfo& movementInfo)
     if (m_clientTimeDelay == 0)
         m_clientTimeDelay = WorldTimer::getMSTime() - movementInfo.ctime;
     movementInfo.stime = movementInfo.ctime + m_clientTimeDelay + MOVEMENT_PACKET_TIME_DELAY;
+}
+
+void WorldSession::RejectMovementPacketsFor(uint32 milliseconds)
+{
+    uint32 rejectUntil = WorldTimer::getMSTime() + milliseconds;
+    if (m_movementPacketRejectUntil < rejectUntil)
+        m_movementPacketRejectUntil = rejectUntil;
 }
 
 std::deque<uint32> WorldSession::GetOutOpcodeHistory()
