@@ -404,6 +404,7 @@ class WorldSession
         uint32 GetLatency() const { return m_latency; }
         void SetLatency(uint32 latency) { m_latency = latency; }
         void ResetClientTimeDelay() { m_clientTimeDelay = 0; }
+        void RejectMovementPacketsFor(uint32 milliseconds);
         uint32 getDialogStatus(const Player* pPlayer, const Object* questgiver, uint32 defstatus) const;
         ClientOSType GetOS() const { return m_clientOS; }
         void SetOS(ClientOSType os) { m_clientOS = os; }
@@ -857,6 +858,7 @@ class WorldSession
         std::atomic<uint32> m_latency;
         AccountData m_accountData[NUM_ACCOUNT_DATA_TYPES];
         uint32 m_clientTimeDelay;
+        uint32 m_movementPacketRejectUntil;
         uint32 m_Tutorials[8];
         TutorialDataState m_tutorialState;
 

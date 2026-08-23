@@ -131,7 +131,9 @@ void Movement::VerifyMovementFlags(uint32 flags, uint32 &removeFlags, bool stric
     if (!_me->movespline->Finalized())
         return;
 
-    if (sAnticheatConfig.IsEnabled(CHEAT_TYPE_FLY_HACK))
+    // A player explicitly placed in GM fly mode is authorized to use the
+    // legacy Vanilla flight flags, matching vMaNGOS PLAYER_CHEAT_FLY.
+    if (sAnticheatConfig.IsEnabled(CHEAT_TYPE_FLY_HACK) && !_me->HasCheatFly())
     {
         static constexpr uint32 flyHackFlags1 = (MOVEFLAG_WALK_MODE | MOVEFLAG_SWIMMING | MOVEFLAG_HOVER | MOVEFLAG_FALLINGFAR | MOVEFLAG_FLYING | MOVEFLAG_ONTRANSPORT);
         static constexpr uint32 flyHackFlags2 = (MOVEFLAG_SWIMMING | MOVEFLAG_FLYING);

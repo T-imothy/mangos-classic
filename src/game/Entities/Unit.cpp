@@ -730,6 +730,7 @@ bool Unit::UpdateMeleeAttackingState()
 
 void Unit::SendHeartBeat()
 {
+    m_movementInfo.SetAsServerSide();
     WorldPacket data(MSG_MOVE_HEARTBEAT, 31);
     data << GetPackGUID();
     data << m_movementInfo;
@@ -12412,11 +12413,14 @@ void Unit::SetCanFly(bool enable)
             StopMoving(true);
         }
 
-        m_movementInfo.SetMovementFlags(MovementFlags(MOVEFLAG_LEVITATING | MOVEFLAG_SWIMMING | MOVEFLAG_SPLINE_ENABLED | MOVEFLAG_FLYING));
+        // Vanilla has no enable-flight opcode. Its client-side fly mode uses
+        // the legacy moved/flying bits, named CAN_FLY/FLYING_OLD in this core.
+        m_movementInfo.SetMovementFlags(MovementFlags(MOVEFLAG_LEVITATING | MOVEFLAG_SWIMMING | MOVEFLAG_CAN_FLY | MOVEFLAG_FLYING_OLD));
     }
     else
         m_movementInfo.SetMovementFlags(MOVEFLAG_NONE);
 
+    static_cast<Player*>(this)->GetSession()->RejectMovementPacketsFor(100);
     SendHeartBeat();
 }
 

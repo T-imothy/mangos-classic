@@ -363,6 +363,7 @@ void WorldSession::HandleMoveTeleportAckOpcode(WorldPacket& recv_data)
 void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
 {
     Opcodes opcode = recv_data.GetOpcode();
+
     if (!sLog.HasLogFilter(LOG_FILTER_PLAYER_MOVES))
     {
         DEBUG_LOG("WORLD: Received opcode %s (%u, 0x%X)", LookupOpcodeName(opcode), opcode, opcode);
@@ -377,15 +378,10 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     recv_data >> movementInfo;
     /*----------------*/
 
-    // The Vanilla client treats space as a normal jump even while the legacy
-    // flying flags are active. Reject it and resync the client before it can
-    // replace fly mode with a falling movement state.
-    if (opcode == MSG_MOVE_JUMP && plMover && plMover->CanFly())
-    {
-        plMover->m_movementInfo.RemoveMovementFlag(movementOrTurningFlagsMask);
-        plMover->SendHeartBeat();
+    // Do not accept client movement generated before a server-side fly state
+    // change. This mirrors vMaNGOS and protects the newer heartbeat state.
+    if (movementInfo.stime <= m_movementPacketRejectUntil)
         return;
-    }
 
     if (!ProcessMovementInfo(movementInfo, mover, plMover, recv_data))
         return;
