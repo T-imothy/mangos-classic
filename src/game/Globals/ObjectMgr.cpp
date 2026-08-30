@@ -777,7 +777,7 @@ void ObjectMgr::LoadCreatureClassLvlStats()
         // if any mistake is made, it will be in these formulae that make asumptions about the new calculations
         // AP, RAP, HP, Mana and armor should stay the same pre-change and post-change when using multipliers == 1
         cCLS.BaseMana -= std::min(cCLS.BaseMana, std::max(0u, (uint32)Unit::GetManaBonusFromIntellect(cCLS.Intellect)));
-        cCLS.BaseMeleeAttackPower -= std::min(cCLS.BaseMeleeAttackPower, std::max(0.f, float(cCLS.Strength >= 10 ? (cCLS.Strength - 10) * 2 : 0)));
+        // cCLS.BaseMeleeAttackPower -= std::min(cCLS.BaseMeleeAttackPower, std::max(0.f, float(cCLS.Strength >= 10 ? (cCLS.Strength - 10) * 2 : 0)));
         cCLS.BaseRangedAttackPower -= std::min(cCLS.BaseRangedAttackPower, std::max(0.f, float(cCLS.Agility >= 10 ? (cCLS.Agility - 10) : 0)));
         cCLS.BaseArmor -= std::min(cCLS.BaseArmor, std::max(0u, cCLS.Agility * 2));
         ++storedRow;
