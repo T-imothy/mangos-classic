@@ -197,12 +197,37 @@ void MapManager::Update(uint32 diff)
     if (!i_timer.Passed())
         return;
 
+    const uint32 mapDiff = static_cast<uint32>(i_timer.GetCurrent());
+    const bool adaptiveLoad = sWorld.getConfig(CONFIG_BOOL_ADAPTIVE_LOAD_ENABLED);
+    const uint32 emptyMapInterval = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_EMPTY_MAP_UPDATE_MS);
+
     for (auto& map : i_maps)
     {
-        if (m_updater.activated())
-            m_updater.schedule_update(new MapUpdateWorker(*map.second, (uint32)i_timer.GetCurrent(), m_updater));
+        uint32 updateDiff = mapDiff;
+        if (adaptiveLoad && !map.second->HavePlayers() && !map.second->IsBattleGround())
+        {
+            uint32& accumulated = m_emptyMapUpdateAccumulator[map.first];
+            accumulated += mapDiff;
+            if (accumulated < emptyMapInterval)
+                continue;
+
+            updateDiff = accumulated;
+            accumulated = 0;
+        }
         else
-            map.second->Update((uint32)i_timer.GetCurrent());
+        {
+            auto accumulated = m_emptyMapUpdateAccumulator.find(map.first);
+            if (accumulated != m_emptyMapUpdateAccumulator.end())
+            {
+                updateDiff += accumulated->second;
+                m_emptyMapUpdateAccumulator.erase(accumulated);
+            }
+        }
+
+        if (m_updater.activated())
+            m_updater.schedule_update(new MapUpdateWorker(*map.second, updateDiff, m_updater));
+        else
+            map.second->Update(updateDiff);
     }
 
     if (m_updater.activated())
@@ -216,6 +241,8 @@ void MapManager::Update(uint32 diff)
         if (iter->second->CanUnload((uint32)i_timer.GetCurrent()))
         {
             auto node = i_maps.extract(iter++);
+
+            m_emptyMapUpdateAccumulator.erase(node.key());
 
             node.mapped()->UnloadAll(true);
         }
@@ -255,6 +282,7 @@ void MapManager::UnloadAll()
         i_map.second->UnloadAll(true);
 
     i_maps.clear();
+    m_emptyMapUpdateAccumulator.clear();
 
     if (m_updater.activated())
         m_updater.deactivate();

@@ -627,8 +627,20 @@ void World::LoadConfigSettings(bool reload)
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS, "PerformanceLog.SlowWorldUpdateMs", 200, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS, "PerformanceLog.SlowMapUpdateMs", 100, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_BOT_MS, "PerformanceLog.SlowBotUpdateMs", 50, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_SESSION_MS, "PerformanceLog.SlowSessionUpdateMs", 50, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_PACKET_MS, "PerformanceLog.SlowPacketMs", 25, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_ASYNC_DB_MS, "PerformanceLog.SlowAsyncDbMs", 100, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_DB_CALLBACK_MS, "PerformanceLog.SlowDbCallbackMs", 50, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SUMMARY_INTERVAL_MS, "PerformanceLog.SummaryIntervalMs", 60000, 1000);
     setConfig(CONFIG_BOOL_PLAYERBOT_STAGGER_BACKGROUND_UPDATES, "Playerbot.StaggerBackgroundUpdates", true);
+    setConfig(CONFIG_BOOL_ADAPTIVE_LOAD_ENABLED, "AdaptiveLoad.Enabled", true);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_EMPTY_MAP_UPDATE_MS, "AdaptiveLoad.EmptyMapUpdateMs", 500, getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE));
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_SLOW_WORLD_MS, "AdaptiveLoad.SlowWorldMs", 250, 1);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_RECOVER_WORLD_MS, "AdaptiveLoad.RecoverWorldMs", 120, 1);
+    setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_MIN_VISIBILITY_PERCENT, "AdaptiveLoad.MinVisibilityPercent", 70, 25, 100);
+    setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_VISIBILITY_STEP_PERCENT, "AdaptiveLoad.VisibilityStepPercent", 5, 1, 25);
+    setConfig(CONFIG_BOOL_MOVEMENT_COMPRESSION_ENABLED, "MovementCompression.Enabled", true);
+    setConfigMin(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS, "MovementCompression.MinPackets", 3, 2);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_ORANGE, "SkillChance.Orange", 100);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_YELLOW, "SkillChance.Yellow", 75);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_GREEN,  "SkillChance.Green",  25);
@@ -1719,9 +1731,65 @@ void World::Update(uint32 diff)
     // cleanup unused GridMap objects as well as VMaps
     sTerrainMgr.Update(diff);
 
+    const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceWorldStart, WorldTimer::getMSTime());
+
+    if (getConfig(CONFIG_BOOL_ADAPTIVE_LOAD_ENABLED))
+    {
+        static uint32 slowWorldStreak = 0;
+        static uint32 recoveredWorldStreak = 0;
+        static uint32 visibilityPercent = 100;
+
+        const uint32 slowThreshold = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_SLOW_WORLD_MS);
+        const uint32 recoveryThreshold = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_RECOVER_WORLD_MS);
+        const uint32 minimumVisibility = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MIN_VISIBILITY_PERCENT);
+        const uint32 visibilityStep = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_VISIBILITY_STEP_PERCENT);
+        bool visibilityChanged = false;
+
+        if (performanceTotalElapsed >= slowThreshold)
+        {
+            ++slowWorldStreak;
+            recoveredWorldStreak = 0;
+            if (slowWorldStreak >= 5 && visibilityPercent > minimumVisibility)
+            {
+                visibilityPercent = std::max(minimumVisibility, visibilityPercent - visibilityStep);
+                slowWorldStreak = 0;
+                visibilityChanged = true;
+            }
+        }
+        else if (performanceTotalElapsed <= recoveryThreshold)
+        {
+            ++recoveredWorldStreak;
+            slowWorldStreak = 0;
+            if (recoveredWorldStreak >= 100 && visibilityPercent < 100)
+            {
+                visibilityPercent = std::min<uint32>(100, visibilityPercent + visibilityStep);
+                recoveredWorldStreak = 0;
+                visibilityChanged = true;
+            }
+        }
+        else
+        {
+            slowWorldStreak = 0;
+            recoveredWorldStreak = 0;
+        }
+
+        if (visibilityChanged)
+        {
+            const float visibilityScale = static_cast<float>(visibilityPercent) / 100.0f;
+            sMapMgr.DoForAllMaps([visibilityScale](Map* map) { map->SetVisibilityDistanceScale(visibilityScale); });
+            sLog.outPerformance("ADAPTIVE_VISIBILITY percent=%u world_update=%u ms sessions_online=%u",
+                visibilityPercent, performanceTotalElapsed, static_cast<uint32>(GetActiveSessionCount()));
+        }
+        else if (visibilityPercent < 100 && (m_worldLoopCounter.load(std::memory_order_relaxed) % 100) == 0)
+        {
+            // Newly created maps should inherit the currently active load-shedding scale.
+            const float visibilityScale = static_cast<float>(visibilityPercent) / 100.0f;
+            sMapMgr.DoForAllMaps([visibilityScale](Map* map) { map->SetVisibilityDistanceScale(visibilityScale); });
+        }
+    }
+
     if (performanceLogging)
     {
-        const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceWorldStart, WorldTimer::getMSTime());
         const uint32 measuredElapsed = performanceBotElapsed + performanceSessionElapsed + performanceMapElapsed;
         const uint32 performanceOtherElapsed = performanceTotalElapsed > measuredElapsed ? performanceTotalElapsed - measuredElapsed : 0;
         const uint32 slowWorldThreshold = getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS);

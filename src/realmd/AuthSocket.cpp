@@ -341,6 +341,11 @@ bool AuthSocket::_HandleLogonChallenge()
         if ((remaining < sizeof(sAuthLogonChallengeBody) - AUTH_LOGON_MAX_NAME))
             return;
 
+        // The body is read into a fixed-size structure. Reject a forged size
+        // before handing it to the asynchronous socket read.
+        if (remaining > sizeof(sAuthLogonChallengeBody))
+            return;
+
         DEBUG_LOG("[AuthChallenge] got header, body is %#04x bytes", remaining);
 
         ///- Session is closed unless overriden
@@ -720,6 +725,9 @@ bool AuthSocket::_HandleReconnectChallenge()
         DEBUG_LOG("[ReconnectChallenge] got header, body is %#04x bytes", remaining);
 
         if ((remaining < sizeof(sAuthLogonChallengeBody) - 10))
+            return;
+
+        if (remaining > sizeof(sAuthLogonChallengeBody))
             return;
 
         ///- Session is closed unless overriden

@@ -126,7 +126,7 @@ void MessageDeliverer::Visit(CameraMapType& m)
         if (i_toSelf || owner != &i_player)
         {
             if (WorldSession* session = owner->GetSession())
-                session->SendPacket(i_message);
+                session->SendMovementPacket(i_message);
         }
     }
 }
@@ -141,7 +141,7 @@ void MessageDelivererExcept::Visit(CameraMapType& m)
             continue;
 
         if (WorldSession* session = owner->GetSession())
-            session->SendPacket(i_message);
+            session->SendMovementPacket(i_message);
     }
 }
 
@@ -150,7 +150,7 @@ void ObjectMessageDeliverer::Visit(CameraMapType& m)
     for (auto& iter : m)
     {
         if (WorldSession* session = iter.getSource()->GetOwner()->GetSession())
-            session->SendPacket(i_message);
+            session->SendMovementPacket(i_message);
     }
 }
 
@@ -165,7 +165,7 @@ void MessageDistDeliverer::Visit(CameraMapType& m)
                 (!i_dist || iter.getSource()->GetBody()->IsWithinDist(&i_player, i_dist)))
         {
             if (WorldSession* session = owner->GetSession())
-                session->SendPacket(i_message);
+                session->SendMovementPacket(i_message);
         }
     }
 }
@@ -177,7 +177,7 @@ void ObjectMessageDistDeliverer::Visit(CameraMapType& m)
         if (!i_dist || iter.getSource()->GetBody()->IsWithinDist(&i_object, i_dist))
         {
             if (WorldSession* session = iter.getSource()->GetOwner()->GetSession())
-                session->SendPacket(i_message);
+                session->SendMovementPacket(i_message);
         }
     }
 }

@@ -58,6 +58,7 @@ class GMTicket;
 class MovementInfo;
 class WorldSession;
 class SessionAnticheatInterface;
+class MovementPacketBuffer;
 
 struct OpcodeHandler;
 
@@ -223,6 +224,8 @@ class WorldSession
         void SizeError(WorldPacket const& packet, uint32 size) const;
 
         void SendPacket(WorldPacket const& packet, bool forcedSend = false) const;
+        void SendMovementPacket(WorldPacket const& packet) const;
+        void FlushMovementPackets() const;
         void SendExpectedSpamRecords();
         void SendMotd(Player* currChar);
         void SendOfflineNameQueryResponses();
@@ -870,6 +873,8 @@ class WorldSession
         // Thread safety mechanisms
         std::mutex m_recvQueueLock;
         std::mutex m_recvQueueMapLock;
+        mutable std::mutex m_movementSendLock;
+        mutable std::unique_ptr<MovementPacketBuffer> m_movementPackets;
         std::deque<std::unique_ptr<WorldPacket>> m_recvQueue;
         std::deque<std::unique_ptr<WorldPacket>> m_recvQueueMap;
 

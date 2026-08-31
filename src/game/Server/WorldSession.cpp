@@ -29,6 +29,7 @@
 #include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
 #include "Entities/Player.h"
+#include "Entities/UpdateData.h"
 #include "Globals/ObjectMgr.h"
 #include "Groups/Group.h"
 #include "Guilds/Guild.h"
@@ -46,6 +47,7 @@
 #include <memory>
 #include <cstdarg>
 #include <iostream>
+#include <zlib.h>
 
 #ifdef BUILD_DEPRECATED_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotMgr.h"
@@ -55,6 +57,66 @@
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot/playerbot.h"
 #endif
+
+class MovementPacketBuffer
+{
+    public:
+        bool CanAdd(WorldPacket const& packet) const
+        {
+            if (packet.wpos() + sizeof(uint16) > 0xFF)
+                return false;
+
+            return EncodedSize() + packet.wpos() + sizeof(uint8) + sizeof(uint16) < 900000;
+        }
+
+        void Add(WorldPacket const& packet) { m_packets.push_back(packet); }
+        bool Empty() const { return m_packets.empty(); }
+
+        std::vector<WorldPacket> Take()
+        {
+            std::vector<WorldPacket> result;
+            result.swap(m_packets);
+            return result;
+        }
+
+        static bool BuildCompressed(std::vector<WorldPacket> const& packets, WorldPacket& output)
+        {
+            ByteBuffer buffer;
+            for (WorldPacket const& packet : packets)
+            {
+                if (packet.wpos() + sizeof(uint16) > 0xFF)
+                    return false;
+
+                buffer << uint8(packet.wpos() + sizeof(uint16));
+                buffer << uint16(packet.GetOpcode());
+                buffer.append(packet.contents(), packet.wpos());
+            }
+
+            const uint32 sourceSize = static_cast<uint32>(buffer.wpos());
+            uint32 destinationSize = compressBound(sourceSize);
+            output.resize(destinationSize + sizeof(uint32));
+            output.put<uint32>(0, sourceSize);
+            UpdateData::Compress(const_cast<uint8*>(output.contents()) + sizeof(uint32), &destinationSize,
+                const_cast<uint8*>(buffer.contents()), sourceSize);
+            if (!destinationSize)
+                return false;
+
+            output.resize(destinationSize + sizeof(uint32));
+            output.SetOpcode(SMSG_COMPRESSED_MOVES);
+            return true;
+        }
+
+    private:
+        size_t EncodedSize() const
+        {
+            size_t size = 0;
+            for (WorldPacket const& packet : m_packets)
+                size += packet.wpos() + sizeof(uint8) + sizeof(uint16);
+            return size;
+        }
+
+        std::vector<WorldPacket> m_packets;
+};
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -252,6 +314,102 @@ void WorldSession::SendPacket(WorldPacket const& packet, bool forcedSend /*= fal
     m_socket->SendPacket(packet);
 }
 
+namespace
+{
+    bool IsCompressibleMovementOpcode(uint16 opcode)
+    {
+        if (opcode >= MSG_MOVE_START_FORWARD && opcode <= MSG_MOVE_HEARTBEAT)
+            return true;
+
+        switch (opcode)
+        {
+            case SMSG_MONSTER_MOVE:
+            case SMSG_MONSTER_MOVE_TRANSPORT:
+            case MSG_MOVE_KNOCK_BACK:
+            case MSG_MOVE_FEATHER_FALL:
+            case MSG_MOVE_WATER_WALK:
+            case MSG_MOVE_TIME_SKIPPED:
+                return true;
+            default:
+                return false;
+        }
+    }
+}
+
+void WorldSession::SendMovementPacket(WorldPacket const& packet) const
+{
+    if (!sWorld.getConfig(CONFIG_BOOL_MOVEMENT_COMPRESSION_ENABLED) || !IsCompressibleMovementOpcode(packet.GetOpcode()))
+    {
+        SendPacket(packet);
+        return;
+    }
+
+#ifdef ENABLE_PLAYERBOTS
+    if (GetPlayer() && !GetPlayer()->isRealPlayer())
+    {
+        SendPacket(packet);
+        return;
+    }
+#endif
+
+    if (!m_socket || m_sessionState != WORLD_SESSION_STATE_READY || packet.wpos() + sizeof(uint16) > 0xFF)
+    {
+        SendPacket(packet);
+        return;
+    }
+
+#if defined(BUILD_DEPRECATED_PLAYERBOT) || defined(ENABLE_PLAYERBOTS)
+    // Preserve Playerbot's observation of the original opcode; only the real client's socket sees compression.
+    if (GetPlayer())
+    {
+        if (GetPlayer()->GetPlayerbotAI())
+            GetPlayer()->GetPlayerbotAI()->HandleBotOutgoingPacket(packet);
+        else if (GetPlayer()->GetPlayerbotMgr())
+            GetPlayer()->GetPlayerbotMgr()->HandleMasterOutgoingPacket(packet);
+    }
+#endif
+
+    std::lock_guard<std::mutex> guard(m_movementSendLock);
+    if (!m_movementPackets)
+        m_movementPackets = std::make_unique<MovementPacketBuffer>();
+
+    if (!m_movementPackets->CanAdd(packet))
+    {
+        std::vector<WorldPacket> pending = m_movementPackets->Take();
+        for (WorldPacket const& queuedPacket : pending)
+            m_socket->SendPacket(queuedPacket);
+    }
+
+    m_movementPackets->Add(packet);
+}
+
+void WorldSession::FlushMovementPackets() const
+{
+    std::vector<WorldPacket> pending;
+    {
+        std::lock_guard<std::mutex> guard(m_movementSendLock);
+        if (!m_movementPackets || m_movementPackets->Empty())
+            return;
+        pending = m_movementPackets->Take();
+    }
+
+    if (!m_socket || m_sessionState != WORLD_SESSION_STATE_READY)
+        return;
+
+    if (pending.size() >= sWorld.getConfig(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS))
+    {
+        WorldPacket compressed;
+        if (MovementPacketBuffer::BuildCompressed(pending, compressed))
+        {
+            m_socket->SendPacket(compressed);
+            return;
+        }
+    }
+
+    for (WorldPacket const& packet : pending)
+        m_socket->SendPacket(packet);
+}
+
 /// Add an incoming packet to the queue
 void WorldSession::QueuePacket(std::unique_ptr<WorldPacket> new_packet)
 {
@@ -259,6 +417,9 @@ void WorldSession::QueuePacket(std::unique_ptr<WorldPacket> new_packet)
     OpcodeHandler const& opHandle = opcodeTable[new_packet->GetOpcode()];
     if (opHandle.packetProcessing == PROCESS_IMMEDIATE)
     {
+        const uint32 performanceStart = WorldTimer::getMSTime();
+        const uint16 opcode = new_packet->GetOpcode();
+        const std::string opcodeName = new_packet->GetOpcodeName();
         try
         {
             (this->*opHandle.handler)(*new_packet);
@@ -270,6 +431,16 @@ void WorldSession::QueuePacket(std::unique_ptr<WorldPacket> new_packet)
 
         if (new_packet->rpos() < new_packet->wpos() && sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
             LogUnprocessedTail(*new_packet);
+
+        if (sWorld.getConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED))
+        {
+            const uint32 elapsed = WorldTimer::getMSTimeDiff(performanceStart, WorldTimer::getMSTime());
+            if (elapsed >= sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_PACKET_MS))
+            {
+                sLog.outPerformance("SLOW_PACKET opcode=%s value=0x%04X elapsed=%u ms account=%u player=%s immediate=1",
+                    opcodeName.c_str(), opcode, elapsed, GetAccountId(), _player ? _player->GetName() : "<none>");
+            }
+        }
         return;
     }
 
@@ -349,6 +520,34 @@ void WorldSession::ProcessByteBufferException(WorldPacket const& packet)
 /// Update the WorldSession (triggered by World update)
 bool WorldSession::Update(uint32 diff)
 {
+    struct SessionUpdatePerformanceGuard
+    {
+        WorldSession& session;
+        uint32 start;
+        uint32 inputDiff;
+        uint32 account;
+        std::string playerName;
+
+        SessionUpdatePerformanceGuard(WorldSession& session, uint32 diff)
+            : session(session), start(WorldTimer::getMSTime()), inputDiff(diff), account(session.GetAccountId()),
+              playerName(session.GetPlayer() ? session.GetPlayer()->GetName() : "<none>")
+        {
+        }
+
+        ~SessionUpdatePerformanceGuard()
+        {
+            if (!sWorld.getConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED))
+                return;
+
+            const uint32 elapsed = WorldTimer::getMSTimeDiff(start, WorldTimer::getMSTime());
+            if (elapsed >= sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_SESSION_MS))
+            {
+                sLog.outPerformance("SLOW_SESSION account=%u player=%s elapsed=%u ms input_diff=%u ms",
+                    account, playerName.c_str(), elapsed, inputDiff);
+            }
+        }
+    } performanceGuard(*this, diff);
+
     GetMessager().Execute(this);
 
     std::deque<std::unique_ptr<WorldPacket>> recvQueueCopy;
@@ -1193,6 +1392,11 @@ void WorldSession::SendTransferAborted(TransferAbortReason reason) const
 
 void WorldSession::ExecuteOpcode(OpcodeHandler const& opHandle, WorldPacket& packet)
 {
+    const uint32 performanceStart = WorldTimer::getMSTime();
+    const uint16 opcode = packet.GetOpcode();
+    const std::string opcodeName = packet.GetOpcodeName();
+    const std::string playerName = _player ? _player->GetName() : "<none>";
+
     // need prevent do internal far teleports in handlers because some handlers do lot steps
     // or call code that can do far teleports in some conditions unexpectedly for generic way work code
     if (_player)
@@ -1220,6 +1424,16 @@ void WorldSession::ExecuteOpcode(OpcodeHandler const& opHandle, WorldPacket& pac
 
     if (packet.rpos() < packet.wpos() && sLog.HasLogLevelOrHigher(LOG_LVL_DEBUG))
         LogUnprocessedTail(packet);
+
+    if (sWorld.getConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED))
+    {
+        const uint32 elapsed = WorldTimer::getMSTimeDiff(performanceStart, WorldTimer::getMSTime());
+        if (elapsed >= sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_PACKET_MS))
+        {
+            sLog.outPerformance("SLOW_PACKET opcode=%s value=0x%04X elapsed=%u ms account=%u player=%s immediate=0",
+                opcodeName.c_str(), opcode, elapsed, GetAccountId(), playerName.c_str());
+        }
+    }
 }
 
 void WorldSession::SendPlaySpellVisual(ObjectGuid guid, uint32 spellArtKit) const

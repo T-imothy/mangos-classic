@@ -177,6 +177,7 @@ class MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockab
         std::mutex m_lock;
         uint32 i_gridCleanUpDelay;
         MapMapType i_maps;
+        std::map<MapID, uint32> m_emptyMapUpdateAccumulator;
         IntervalTimer i_timer;
 
         std::atomic<uint32> i_MaxInstanceId;

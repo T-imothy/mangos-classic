@@ -237,12 +237,43 @@ Spawns.ZoneArea = 0
 #    PerformanceLog.SlowWorldUpdateMs
 #    PerformanceLog.SlowMapUpdateMs
 #    PerformanceLog.SlowBotUpdateMs
+#    PerformanceLog.SlowSessionUpdateMs
+#    PerformanceLog.SlowPacketMs
+#    PerformanceLog.SlowAsyncDbMs
+#    PerformanceLog.SlowDbCallbackMs
 #        Write a detailed record when the corresponding update meets or exceeds this time.
-#        Defaults: 200, 100, and 50 milliseconds.
+#        Defaults: 200, 100, 50, 50, 25, 100, and 50 milliseconds.
 #
 #    PerformanceLog.SummaryIntervalMs
 #        Interval for aggregate world update summaries.
 #        Default: 60000 (one minute)
+#
+#    AdaptiveLoad.Enabled
+#        Reduce idle-map work and temporarily reduce visibility during sustained slow world ticks.
+#        Default: 1 (enable)
+#
+#    AdaptiveLoad.EmptyMapUpdateMs
+#        Update interval for maps without players. Elapsed time is accumulated so game timers remain correct.
+#        Default: 500 milliseconds
+#
+#    AdaptiveLoad.SlowWorldMs
+#    AdaptiveLoad.RecoverWorldMs
+#        Slow/recovery thresholds used by adaptive visibility.
+#        Defaults: 250 and 120 milliseconds
+#
+#    AdaptiveLoad.MinVisibilityPercent
+#    AdaptiveLoad.VisibilityStepPercent
+#        Visibility floor and the size of each recovery/load-shedding step.
+#        Defaults: 70 and 5 percent
+#
+#    MovementCompression.Enabled
+#        Group nearby movement broadcasts into the Vanilla client's SMSG_COMPRESSED_MOVES format.
+#        Playerbot sessions continue to receive original movement packets.
+#        Default: 1 (enable)
+#
+#    MovementCompression.MinPackets
+#        Minimum number of movement packets to group before compression.
+#        Default: 3
 #
 #    MaxCoreStuckTime
 #        Periodically check if the process got freezed, if this is the case force crash after the specified
@@ -298,7 +329,19 @@ PerformanceLog.Enabled = 1
 PerformanceLog.SlowWorldUpdateMs = 200
 PerformanceLog.SlowMapUpdateMs = 100
 PerformanceLog.SlowBotUpdateMs = 50
+PerformanceLog.SlowSessionUpdateMs = 50
+PerformanceLog.SlowPacketMs = 25
+PerformanceLog.SlowAsyncDbMs = 100
+PerformanceLog.SlowDbCallbackMs = 50
 PerformanceLog.SummaryIntervalMs = 60000
+AdaptiveLoad.Enabled = 1
+AdaptiveLoad.EmptyMapUpdateMs = 500
+AdaptiveLoad.SlowWorldMs = 250
+AdaptiveLoad.RecoverWorldMs = 120
+AdaptiveLoad.MinVisibilityPercent = 70
+AdaptiveLoad.VisibilityStepPercent = 5
+MovementCompression.Enabled = 1
+MovementCompression.MinPackets = 3
 MaxCoreStuckTime = 0
 AddonChannel = 1
 CleanCharacterDB = 1

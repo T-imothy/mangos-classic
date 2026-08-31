@@ -157,7 +157,7 @@ void Map::LoadMapAndVMap(int gx, int gy)
 Map::Map(uint32 id, time_t expiry, uint32 InstanceId)
     : i_mapEntry(sMapStore.LookupEntry(id)),
       i_id(id), i_InstanceId(InstanceId), m_unloadTimer(0),
-      m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_persistentState(nullptr),
+      m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_BaseVisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_persistentState(nullptr),
       m_activeNonPlayersIter(m_activeNonPlayers.end()), m_onEventNotifiedIter(m_onEventNotifiedObjects.end()),
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
       i_data(nullptr), i_script_id(0), m_transportsIterator(m_transports.begin()), m_spawnManager(*this),
@@ -186,6 +186,7 @@ void Map::Initialize(std::mutex* mmapMutex, bool loadInstanceData /*= true*/)
 
     // lets initialize visibility distance for map
     InitVisibilityDistance();
+    m_BaseVisibleDistance = m_VisibleDistance;
 
     // add reference for TerrainData object
     m_TerrainData->AddRef();
@@ -233,6 +234,12 @@ void Map::InitVisibilityDistance()
 {
     // init visibility for continents
     m_VisibleDistance = World::GetMaxVisibleDistanceOnContinents();
+}
+
+void Map::SetVisibilityDistanceScale(float scale)
+{
+    scale = std::max(0.25f, std::min(1.0f, scale));
+    m_VisibleDistance = m_BaseVisibleDistance * scale;
 }
 
 // Template specialization of utility methods
@@ -1077,6 +1084,15 @@ void Map::Update(const uint32& t_diff)
         i_data->Update(t_diff);
 
     m_weatherSystem->UpdateWeathers(t_diff);
+
+    for (m_mapRefIter = m_mapRefManager.begin(); m_mapRefIter != m_mapRefManager.end(); ++m_mapRefIter)
+    {
+        if (Player* player = m_mapRefIter->getSource())
+        {
+            if (WorldSession* session = player->GetSession())
+                session->FlushMovementPackets();
+        }
+    }
 
     if (performanceLogging)
     {
