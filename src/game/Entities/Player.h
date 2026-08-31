@@ -887,6 +887,7 @@ class Player : public Unit
         float GetNativeScale() const override;
 
         bool TeleportTo(uint32 mapid, float x, float y, float z, float orientation, uint32 options = 0, AreaTrigger const* at = nullptr, GenericTransport* transport = nullptr);
+        bool SwitchInstance(uint32 newInstanceId);
 
         bool TeleportTo(WorldLocation const& loc, uint32 options = 0)
         {

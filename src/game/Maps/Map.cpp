@@ -18,6 +18,7 @@
 
 #include "Maps/Map.h"
 #include "Maps/MapManager.h"
+#include "Maps/MapWorkers.h"
 #include "Entities/Player.h"
 #include "Grids/GridNotifiers.h"
 #include "Log/Log.h"
@@ -1048,12 +1049,12 @@ void Map::Update(const uint32& t_diff)
         }
     }
 
-    // update all objects
-    for (auto wObj : objToUpdate)
-    {
-        wObj->Update(t_diff);
-        ++count;
-    }
+    // Gameplay and AI updates intentionally remain ordered. CMaNGOS objects can
+    // mutate one another from spells, combat, scripts and Playerbot callbacks;
+    // only the read/build-heavy client update phase below is partitioned.
+    count += objToUpdate.size();
+    for (WorldObject* object : objToUpdate)
+        object->Update(t_diff);
 
 #ifdef BUILD_METRICS
     meas.add_field("count", std::to_string(static_cast<int32>(count)));
@@ -1542,6 +1543,8 @@ void Map::AddObjectToRemoveList(WorldObject* obj)
 {
     MANGOS_ASSERT(obj->GetMapId() == GetId() && obj->GetInstanceId() == GetInstanceId());
 
+    std::lock_guard<std::recursive_mutex> guard(m_removeListLock);
+
     obj->CleanupsBeforeDelete();                            // remove or simplify at least cross referenced links
 
     i_objectsToRemove.insert(obj);
@@ -1550,14 +1553,20 @@ void Map::AddObjectToRemoveList(WorldObject* obj)
 
 void Map::RemoveAllObjectsInRemoveList()
 {
-    if (i_objectsToRemove.empty())
+    WorldObjectSet objectsToRemove;
+    {
+        std::lock_guard<std::recursive_mutex> guard(m_removeListLock);
+        objectsToRemove.swap(i_objectsToRemove);
+    }
+
+    if (objectsToRemove.empty())
         return;
 
     // DEBUG_LOG("Object remover 1 check.");
-    while (!i_objectsToRemove.empty())
+    while (!objectsToRemove.empty())
     {
-        WorldObject* obj = *i_objectsToRemove.begin();
-        i_objectsToRemove.erase(i_objectsToRemove.begin());
+        WorldObject* obj = *objectsToRemove.begin();
+        objectsToRemove.erase(objectsToRemove.begin());
 
         switch (obj->GetTypeId())
         {
@@ -2483,23 +2492,66 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
 
 void Map::SendObjectUpdates()
 {
-    UpdateDataMapType update_players;
-
-    while (!i_objectsToClientUpdate.empty())
+    std::set<Object*> objectsToUpdate;
     {
-        Object* obj = *i_objectsToClientUpdate.begin();
-        i_objectsToClientUpdate.erase(i_objectsToClientUpdate.begin());
-        obj->BuildUpdateData(update_players);
+        std::lock_guard<std::mutex> guard(m_updateObjectLock);
+        objectsToUpdate.swap(i_objectsToClientUpdate);
     }
 
-    for (auto& update_player : update_players)
+    if (objectsToUpdate.empty())
+        return;
+
+    std::vector<std::unique_ptr<UpdateDataMapType>> parallelUpdates;
+    UpdateDataMapType sequentialUpdates;
+    uint32 const chunkSize = sWorld.getConfig(CONFIG_UINT32_MAP_VISIBILITY_CHUNK_SIZE);
+    MapUpdater& updater = sMapMgr.GetObjectUpdater();
+
+    if (IsContinent() && updater.activated() && objectsToUpdate.size() >= chunkSize)
     {
-        for (size_t i = 0; i < update_player.second.GetPacketCount(); ++i)
+        size_t const chunkCount = (objectsToUpdate.size() + chunkSize - 1) / chunkSize;
+        parallelUpdates.reserve(chunkCount);
+
+        std::vector<Object*> chunk;
+        chunk.reserve(chunkSize);
+        for (Object* object : objectsToUpdate)
         {
-            WorldPacket packet = update_player.second.BuildPacket(i);
-            update_player.first->GetSession()->SendPacket(packet);
+            chunk.push_back(object);
+            if (chunk.size() == chunkSize)
+            {
+                parallelUpdates.emplace_back(std::make_unique<UpdateDataMapType>());
+                updater.schedule_update(new ObjectUpdateBuildWorker(std::move(chunk), *parallelUpdates.back(), updater));
+                chunk.clear();
+                chunk.reserve(chunkSize);
+            }
         }
+
+        if (!chunk.empty())
+        {
+            parallelUpdates.emplace_back(std::make_unique<UpdateDataMapType>());
+            updater.schedule_update(new ObjectUpdateBuildWorker(std::move(chunk), *parallelUpdates.back(), updater));
+        }
+
+        updater.wait();
     }
+    else
+        for (Object* object : objectsToUpdate)
+            object->BuildUpdateData(sequentialUpdates);
+
+    auto sendUpdates = [](UpdateDataMapType& updates)
+    {
+        for (auto& updatePlayer : updates)
+        {
+            for (size_t i = 0; i < updatePlayer.second.GetPacketCount(); ++i)
+            {
+                WorldPacket packet = updatePlayer.second.BuildPacket(i);
+                updatePlayer.first->GetSession()->SendPacket(packet);
+            }
+        }
+    };
+
+    sendUpdates(sequentialUpdates);
+    for (auto& updates : parallelUpdates)
+        sendUpdates(*updates);
 }
 
 Creature* Map::GetCreature(uint32 dbguid) const

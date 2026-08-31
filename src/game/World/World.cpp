@@ -623,6 +623,8 @@ void World::LoadConfigSettings(bool reload)
     }
 
     setConfig(CONFIG_UINT32_NUM_MAP_THREADS, "MapUpdate.Threads", 3);
+    setConfigMin(CONFIG_UINT32_MAP_OBJECT_THREADS, "MapUpdate.ObjectThreads", 4, 1);
+    setConfigMin(CONFIG_UINT32_MAP_VISIBILITY_CHUNK_SIZE, "MapUpdate.VisibilityChunkSize", 64, 8);
     setConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED, "PerformanceLog.Enabled", true);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS, "PerformanceLog.SlowWorldUpdateMs", 200, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS, "PerformanceLog.SlowMapUpdateMs", 100, 1);
@@ -641,6 +643,20 @@ void World::LoadConfigSettings(bool reload)
     setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_VISIBILITY_STEP_PERCENT, "AdaptiveLoad.VisibilityStepPercent", 5, 1, 25);
     setConfig(CONFIG_BOOL_MOVEMENT_COMPRESSION_ENABLED, "MovementCompression.Enabled", true);
     setConfigMin(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS, "MovementCompression.MinPackets", 3, 2);
+    setConfigMin(CONFIG_UINT32_MOVEMENT_BROADCAST_THREADS, "MovementBroadcast.Threads", 2, 1);
+    setConfigMin(CONFIG_UINT32_MOVEMENT_BROADCAST_MAX_QUEUED_BATCHES, "MovementBroadcast.MaxQueuedBatches", 32768, 128);
+    setConfig(CONFIG_FLOAT_DYN_RESPAWN_CHECK_RANGE, "DynamicRespawn.Range", -1.0f);
+    setConfig(CONFIG_FLOAT_DYN_RESPAWN_MAX_REDUCTION_RATE, "DynamicRespawn.MaxReductionRate", 0.0f);
+    setConfig(CONFIG_FLOAT_DYN_RESPAWN_PERCENT_PER_PLAYER, "DynamicRespawn.PercentPerPlayer", 0.0f);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_MIN_RESPAWN_TIME, "DynamicRespawn.MinRespawnTime", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_MIN_RESPAWN_TIME_ELITE, "DynamicRespawn.MinEliteRespawnTime", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_MIN_RESPAWN_TIME_INDOORS, "DynamicRespawn.MinIndoorRespawnTime", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_AFFECT_RESPAWN_TIME_BELOW, "DynamicRespawn.AffectRespawnTimeBelow", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_AFFECT_LEVEL_BELOW, "DynamicRespawn.AffectLevelBelow", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_PLAYERS_THRESHOLD, "DynamicRespawn.PlayersThreshold", 0);
+    setConfig(CONFIG_UINT32_DYN_RESPAWN_PLAYERS_LEVELDIFF, "DynamicRespawn.PlayersMaxLevelDiff", 0);
+    setConfig(CONFIG_BOOL_DYN_RESPAWN_ALLOW_ELITES, "DynamicRespawn.AllowElites", false);
+    setConfig(CONFIG_BOOL_CONTINENTS_INSTANCIATE, "Continents.Instanciate", false);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_ORANGE, "SkillChance.Orange", 100);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_YELLOW, "SkillChance.Yellow", 75);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_GREEN,  "SkillChance.Green",  25);

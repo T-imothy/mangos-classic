@@ -733,6 +733,9 @@ class ObjectMgr
         void LoadPageTexts();
 
         void LoadPlayerInfo();
+        void LoadPlayerAgilityRates();
+        float GetPlayerCritPerAgility(uint32 classId, uint32 level) const;
+        float GetPlayerDodgePerAgility(uint32 classId, uint32 level) const;
         void LoadPetLevelInfo();
         void LoadExplorationBaseXP();
         void LoadPetNames();
@@ -1333,6 +1336,9 @@ class ObjectMgr
 
         typedef std::vector<uint32> PlayerXPperLevel;       // [level]
         PlayerXPperLevel mPlayerXPperLevel;
+
+        std::vector<float> m_playerCritPerAgility[MAX_CLASSES];
+        std::vector<float> m_playerDodgePerAgility[MAX_CLASSES];
 
         typedef std::map<uint32, uint32> BaseXPMap;         // [area level][base xp]
         BaseXPMap mBaseXPTable;

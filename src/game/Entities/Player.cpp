@@ -785,6 +785,9 @@ bool Player::Create(uint32 guidlow, const std::string& name, uint8 race, uint8 c
     SetLocationMapId(info->mapId);
     Relocate(info->positionX, info->positionY, info->positionZ, info->orientation);
 
+    if (GetMapId() <= 1)
+        SetLocationInstanceId(sMapMgr.GetContinentInstanceId(GetMapId(), GetPositionX(), GetPositionY()));
+
     SetMap(sMapMgr.CreateMap(info->mapId, this));
 
     uint8 powertype = cEntry->powerType;
@@ -1422,6 +1425,15 @@ void Player::Update(const uint32 diff)
     if (IsHasDelayedTeleport() && m_semaphoreTeleport_Near)
         TeleportTo(m_teleport_dest, m_teleport_options);
 
+    if (sWorld.getConfig(CONFIG_BOOL_CONTINENTS_INSTANCIATE) && IsInWorld() && GetMap()->IsContinent() &&
+        !m_transport && !IsTaxiFlying() && !IsBeingTeleported())
+    {
+        bool transitionArea = false;
+        uint32 const newInstanceId = sMapMgr.GetContinentInstanceId(GetMapId(), GetPositionX(), GetPositionY(), &transitionArea);
+        if (newInstanceId != GetInstanceId() && (!transitionArea || !IsInCombat()))
+            sMapMgr.ScheduleInstanceSwitch(this, newInstanceId);
+    }
+
     time_t now = time(nullptr);
 
     UpdatePvPFlagTimer(diff);
@@ -1910,6 +1922,56 @@ bool Player::isGMChat() const
     return false;
 }
 
+bool Player::SwitchInstance(uint32 newInstanceId)
+{
+    if (!IsInWorld() || InBattleGround() || IsTaxiFlying() || !GetMap()->IsContinent())
+        return false;
+
+    Map* oldMap = GetMap();
+
+    if (m_transport && m_transport->GetInstanceId() != newInstanceId)
+    {
+        m_transport->RemovePassenger(this);
+        m_transport = nullptr;
+        m_movementInfo.ClearTransportData();
+    }
+
+    if (duel)
+        if (oldMap->GetGameObject(GetGuidValue(PLAYER_DUEL_ARBITER)))
+            DuelComplete(DUEL_FLED);
+
+    SetSelectionGuid(ObjectGuid());
+    CombatStop();
+    m_summon_expire = 0;
+    UnsummonPetTemporaryIfAny();
+    RemoveAllDynObjects();
+
+    if (IsNonMeleeSpellCasted(true))
+        InterruptNonMeleeSpells(true);
+
+    RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_LEAVE_WORLD | AURA_INTERRUPT_FLAG_MOVING | AURA_INTERRUPT_FLAG_TURNING);
+    DisableSpline();
+    SetMover(this);
+    getHostileRefManager().deleteReferences();
+
+    oldMap->Remove(this, false);
+    SetLocationInstanceId(newInstanceId);
+
+    Map* newMap = sMapMgr.FindMap(oldMap->GetId(), newInstanceId);
+    if (!newMap)
+        newMap = sMapMgr.CreateMap(oldMap->GetId(), this);
+    if (!newMap || !newMap->Add(this))
+    {
+        sLog.outError("Failed switching %s to continent partition %u", GetGuidStr().c_str(), newInstanceId);
+        return false;
+    }
+
+    SendInitialPacketsAfterAddToMap(false);
+    ResummonPetTemporaryUnSummonedIfAny();
+    ProcessDelayedOperations();
+    return true;
+}
+
 bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientation, uint32 options /*=0*/, AreaTrigger const* at /*=nullptr*/, GenericTransport* transport /*=nullptr*/)
 {
     if (!MapManager::IsValidMapCoord(mapid, x, y, z, orientation))
@@ -2041,8 +2103,16 @@ bool Player::TeleportTo(uint32 mapid, float x, float y, float z, float orientati
             }
         }
 
-        // this will be used instead of the current location in SaveToDB
-        m_teleport_dest = WorldLocation(mapid, x, y, z, orientation);
+        // This is used instead of the current location in SaveToDB. A transport
+        // teleport is encoded with passenger offsets, while the player itself
+        // must finish the ACK at absolute world coordinates.
+        float destinationX = x;
+        float destinationY = y;
+        float destinationZ = z;
+        float destinationO = orientation;
+        if (currentTransport)
+            currentTransport->CalculatePassengerPosition(destinationX, destinationY, destinationZ, &destinationO);
+        m_teleport_dest = WorldLocation(mapid, destinationX, destinationY, destinationZ, destinationO);
 
         // code for finish transfer called in WorldSession::HandleMovementOpcodes()
         // at client packet MSG_MOVE_TELEPORT_ACK
@@ -4876,90 +4946,12 @@ uint32 Player::GetShieldBlockValue() const
 
 float Player::GetMeleeCritFromAgility() const
 {
-    float valLevel1 = 0.0f;
-    float valLevel60 = 0.0f;
-    // critical
-    switch (getClass())
-    {
-        case CLASS_PALADIN:
-        case CLASS_SHAMAN:
-        case CLASS_DRUID:
-            valLevel1 = 4.6f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_MAGE:
-            valLevel1 = 12.9f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_ROGUE:
-            valLevel1 = 2.2f;
-            valLevel60 = 29.0f;
-            break;
-        case CLASS_HUNTER:
-            valLevel1 = 3.5f;
-            valLevel60 = 53.0f;
-            break;
-        case CLASS_PRIEST:
-            valLevel1 = 11.0f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_WARLOCK:
-            valLevel1 = 8.4f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_WARRIOR:
-            valLevel1 = 3.9f;
-            valLevel60 = 20.0f;
-            break;
-        default:
-            return 0.0f;
-    }
-    float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
-    return GetStat(STAT_AGILITY) / classrate;
+    return GetStat(STAT_AGILITY) / sObjectMgr.GetPlayerCritPerAgility(getClass(), GetLevel());
 }
 
 float Player::GetDodgeFromAgility(float amount) const
 {
-    float valLevel1 = 0.0f;
-    float valLevel60 = 0.0f;
-    // critical
-    switch (getClass())
-    {
-        case CLASS_PALADIN:
-        case CLASS_SHAMAN:
-        case CLASS_DRUID:
-            valLevel1 = 4.6f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_MAGE:
-            valLevel1 = 12.9f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_ROGUE:
-            valLevel1 = 1.1f;
-            valLevel60 = 14.5f;
-            break;
-        case CLASS_HUNTER:
-            valLevel1 = 1.8f;
-            valLevel60 = 26.5f;
-            break;
-        case CLASS_PRIEST:
-            valLevel1 = 11.0f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_WARLOCK:
-            valLevel1 = 8.4f;
-            valLevel60 = 20.0f;
-            break;
-        case CLASS_WARRIOR:
-            valLevel1 = 3.9f;
-            valLevel60 = 20.0f;
-            break;
-        default:
-            return 0.0f;
-    }
-    float classrate = valLevel1 * float(60.0f - GetLevel()) / 59.0f + valLevel60 * float(GetLevel() - 1.0f) / 59.0f;
-    return GetStat(STAT_AGILITY) / classrate;
+    return amount / sObjectMgr.GetPlayerDodgePerAgility(getClass(), GetLevel());
 }
 
 float Player::GetSpellCritFromIntellect() const
@@ -14270,6 +14262,8 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     }
 
     // load the player's map here if it's not already loaded
+    if (GetMapId() <= 1)
+        SetLocationInstanceId(sMapMgr.GetContinentInstanceId(GetMapId(), GetPositionX(), GetPositionY()));
     SetMap(sMapMgr.CreateMap(GetMapId(), this));
 
     if (transGUID != 0)
@@ -14314,6 +14308,8 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
 
             m_movementInfo.ClearTransportData();
 
+            if (GetMapId() <= 1)
+                SetLocationInstanceId(sMapMgr.GetContinentInstanceId(GetMapId(), GetPositionX(), GetPositionY()));
             SetMap(sMapMgr.CreateMap(GetMapId(), this));
             SaveRecallPosition();                           // save as recall also to prevent recall and fall from sky
         }
@@ -14331,7 +14327,7 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
     if (!sWorld.getConfig(CONFIG_BOOL_DISABLE_INSTANCE_RELOCATE))
     {
         // if the player is in an instance and it has been reset in the meantime teleport him to the entrance
-        if (GetInstanceId() && (!state || time_diff > 15 * MINUTE))
+        if (GetMap()->Instanceable() && GetInstanceId() && (!state || time_diff > 15 * MINUTE))
         {
             AreaTrigger const* at = sObjectMgr.GetMapEntranceTrigger(GetMapId());
             if (at)
@@ -14496,6 +14492,8 @@ bool Player::LoadFromDB(ObjectGuid guid, SqlQueryHolder* holder)
 
         // we can be relocated from taxi and still have an outdated Map pointer!
         // so we need to get a new Map pointer!
+        if (GetMapId() <= 1)
+            SetLocationInstanceId(sMapMgr.GetContinentInstanceId(GetMapId(), GetPositionX(), GetPositionY()));
         SetMap(sMapMgr.CreateMap(GetMapId(), this));
         SaveRecallPosition();                           // save as recall also to prevent recall and fall from sky
     }

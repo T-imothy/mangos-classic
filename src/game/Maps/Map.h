@@ -287,11 +287,13 @@ class Map : public GridRefManager<NGridType>
 
         void AddUpdateObject(Object* obj)
         {
+            std::lock_guard<std::mutex> guard(m_updateObjectLock);
             i_objectsToClientUpdate.insert(obj);
         }
 
         void RemoveUpdateObject(Object* obj)
         {
+            std::lock_guard<std::mutex> guard(m_updateObjectLock);
             i_objectsToClientUpdate.erase(obj);
         }
 
@@ -422,6 +424,7 @@ class Map : public GridRefManager<NGridType>
 
         void SendObjectUpdates();
         std::set<Object*> i_objectsToClientUpdate;
+        std::mutex m_updateObjectLock;
 
     protected:
         MapEntry const* i_mapEntry;
@@ -464,6 +467,7 @@ class Map : public GridRefManager<NGridType>
         std::bitset<TOTAL_NUMBER_OF_CELLS_PER_MAP* TOTAL_NUMBER_OF_CELLS_PER_MAP> marked_cells;
 
         WorldObjectSet i_objectsToRemove;
+        std::recursive_mutex m_removeListLock;
 
         typedef std::multimap<TimePoint, ScriptAction> ScriptScheduleMap;
         ScriptScheduleMap m_scriptSchedule;

@@ -43,8 +43,10 @@
 #include "Anticheat/Anticheat.hpp"
 
 #include <mutex>
+#include <condition_variable>
 #include <deque>
 #include <memory>
+#include <thread>
 #include <cstdarg>
 #include <iostream>
 #include <zlib.h>
@@ -117,6 +119,129 @@ class MovementPacketBuffer
 
         std::vector<WorldPacket> m_packets;
 };
+
+namespace
+{
+    class MovementBroadcastPool
+    {
+        public:
+            MovementBroadcastPool(uint32 threadCount, uint32 maxQueuedBatches) : m_maxQueuedBatches(maxQueuedBatches)
+            {
+                m_lanes.reserve(threadCount);
+                for (uint32 i = 0; i < threadCount; ++i)
+                {
+                    m_lanes.emplace_back(std::make_unique<Lane>());
+                    Lane* lane = m_lanes.back().get();
+                    lane->worker = std::thread([lane]() { RunLane(*lane); });
+                }
+
+                sLog.outString(">> Movement broadcaster started with %u ordered worker lanes", threadCount);
+            }
+
+            ~MovementBroadcastPool()
+            {
+                for (auto& lane : m_lanes)
+                {
+                    {
+                        std::lock_guard<std::mutex> guard(lane->lock);
+                        lane->stopping = true;
+                    }
+                    lane->ready.notify_all();
+                    lane->spaceAvailable.notify_all();
+                }
+
+                for (auto& lane : m_lanes)
+                    if (lane->worker.joinable())
+                        lane->worker.join();
+            }
+
+            void Queue(std::shared_ptr<WorldSocket> socket, std::vector<WorldPacket>&& packets, uint32 compressionMinimum)
+            {
+                if (!socket || packets.empty())
+                    return;
+
+                size_t const laneIndex = (reinterpret_cast<uintptr_t>(socket.get()) >> 4) % m_lanes.size();
+                Lane& lane = *m_lanes[laneIndex];
+                std::unique_lock<std::mutex> guard(lane.lock);
+                lane.spaceAvailable.wait(guard, [&]() { return lane.stopping || lane.jobs.size() < m_maxQueuedBatches; });
+                if (lane.stopping)
+                    return;
+
+                lane.jobs.push_back(Job{std::move(socket), std::move(packets), compressionMinimum});
+                guard.unlock();
+                lane.ready.notify_one();
+            }
+
+        private:
+            struct Job
+            {
+                std::shared_ptr<WorldSocket> socket;
+                std::vector<WorldPacket> packets;
+                uint32 compressionMinimum;
+            };
+
+            struct Lane
+            {
+                std::mutex lock;
+                std::condition_variable ready;
+                std::condition_variable spaceAvailable;
+                std::deque<Job> jobs;
+                std::thread worker;
+                bool stopping = false;
+            };
+
+            static void RunLane(Lane& lane)
+            {
+                for (;;)
+                {
+                    Job job;
+                    {
+                        std::unique_lock<std::mutex> guard(lane.lock);
+                        lane.ready.wait(guard, [&]() { return lane.stopping || !lane.jobs.empty(); });
+                        if (lane.stopping && lane.jobs.empty())
+                            return;
+
+                        job = std::move(lane.jobs.front());
+                        lane.jobs.pop_front();
+                    }
+                    lane.spaceAvailable.notify_one();
+
+                    if (!job.socket || job.socket->IsClosed())
+                        continue;
+
+                    if (job.packets.size() >= job.compressionMinimum)
+                    {
+                        WorldPacket compressed;
+                        if (MovementPacketBuffer::BuildCompressed(job.packets, compressed))
+                        {
+                            job.socket->SendPacket(compressed);
+                            continue;
+                        }
+                    }
+
+                    for (WorldPacket const& packet : job.packets)
+                        job.socket->SendPacket(packet);
+                }
+            }
+
+            uint32 m_maxQueuedBatches;
+            std::vector<std::unique_ptr<Lane>> m_lanes;
+    };
+
+    MovementBroadcastPool& GetMovementBroadcastPool()
+    {
+        static MovementBroadcastPool pool(
+            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_THREADS),
+            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_MAX_QUEUED_BATCHES));
+        return pool;
+    }
+
+    void DispatchMovementPackets(std::shared_ptr<WorldSocket> socket, std::vector<WorldPacket>&& packets)
+    {
+        GetMovementBroadcastPool().Queue(std::move(socket), std::move(packets),
+            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS));
+    }
+}
 
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
@@ -369,18 +494,20 @@ void WorldSession::SendMovementPacket(WorldPacket const& packet) const
     }
 #endif
 
-    std::lock_guard<std::mutex> guard(m_movementSendLock);
-    if (!m_movementPackets)
-        m_movementPackets = std::make_unique<MovementPacketBuffer>();
-
-    if (!m_movementPackets->CanAdd(packet))
+    std::vector<WorldPacket> overflow;
     {
-        std::vector<WorldPacket> pending = m_movementPackets->Take();
-        for (WorldPacket const& queuedPacket : pending)
-            m_socket->SendPacket(queuedPacket);
+        std::lock_guard<std::mutex> guard(m_movementSendLock);
+        if (!m_movementPackets)
+            m_movementPackets = std::make_unique<MovementPacketBuffer>();
+
+        if (!m_movementPackets->CanAdd(packet))
+            overflow = m_movementPackets->Take();
+
+        m_movementPackets->Add(packet);
     }
 
-    m_movementPackets->Add(packet);
+    if (!overflow.empty())
+        DispatchMovementPackets(m_socket, std::move(overflow));
 }
 
 void WorldSession::FlushMovementPackets() const
@@ -396,18 +523,7 @@ void WorldSession::FlushMovementPackets() const
     if (!m_socket || m_sessionState != WORLD_SESSION_STATE_READY)
         return;
 
-    if (pending.size() >= sWorld.getConfig(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS))
-    {
-        WorldPacket compressed;
-        if (MovementPacketBuffer::BuildCompressed(pending, compressed))
-        {
-            m_socket->SendPacket(compressed);
-            return;
-        }
-    }
-
-    for (WorldPacket const& packet : pending)
-        m_socket->SendPacket(packet);
+    DispatchMovementPackets(m_socket, std::move(pending));
 }
 
 /// Add an incoming packet to the queue

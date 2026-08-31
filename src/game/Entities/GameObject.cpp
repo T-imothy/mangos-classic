@@ -991,7 +991,7 @@ void GameObject::DeleteFromDB() const
     }
 
     GameObjectRespawnDeleteWorker worker(GetDbGuid());
-    sMapPersistentStateMgr.DoForAllStatesWithMapId(GetMapId(), worker);
+    sMapPersistentStateMgr.DoForAllStatesWithMapId(GetMapId(), GetInstanceId(), worker);
 
     sObjectMgr.DeleteGOData(GetDbGuid());
     WorldDatabase.PExecuteLog("DELETE FROM gameobject WHERE guid = '%u'", GetDbGuid());

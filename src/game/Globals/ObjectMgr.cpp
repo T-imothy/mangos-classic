@@ -3720,7 +3720,147 @@ void ObjectMgr::LoadPlayerInfo()
             mPlayerXPperLevel[level] = mPlayerXPperLevel[level - 1] + 100;
         }
     }
+
+    LoadPlayerAgilityRates();
 }
+
+void ObjectMgr::LoadPlayerAgilityRates()
+{
+    uint32 const maxLevel = std::max<uint32>(1, sWorld.getConfig(CONFIG_UINT32_MAX_PLAYER_LEVEL));
+
+    auto getFallbackRate = [](uint32 classId, uint32 level, bool dodge) -> float
+    {
+        float levelOne = 0.0f;
+        float levelSixty = 0.0f;
+        switch (classId)
+        {
+            case CLASS_PALADIN:
+            case CLASS_SHAMAN:
+            case CLASS_DRUID:
+                levelOne = 4.6f;
+                levelSixty = 20.0f;
+                break;
+            case CLASS_MAGE:
+                levelOne = 12.9f;
+                levelSixty = 20.0f;
+                break;
+            case CLASS_ROGUE:
+                levelOne = dodge ? 1.1f : 2.2f;
+                levelSixty = dodge ? 14.5f : 29.0f;
+                break;
+            case CLASS_HUNTER:
+                levelOne = dodge ? 1.8f : 3.5f;
+                levelSixty = dodge ? 26.5f : 53.0f;
+                break;
+            case CLASS_PRIEST:
+                levelOne = 11.0f;
+                levelSixty = 20.0f;
+                break;
+            case CLASS_WARLOCK:
+                levelOne = 8.4f;
+                levelSixty = 20.0f;
+                break;
+            case CLASS_WARRIOR:
+                levelOne = 3.9f;
+                levelSixty = 20.0f;
+                break;
+            default:
+                return 1.0f;
+        }
+
+        float const clampedLevel = float(std::min<uint32>(60, std::max<uint32>(1, level)));
+        return levelOne * (60.0f - clampedLevel) / 59.0f + levelSixty * (clampedLevel - 1.0f) / 59.0f;
+    };
+
+    auto loadRates = [&](char const* tableName, std::vector<float> (&rates)[MAX_CLASSES], bool dodge)
+    {
+        for (uint32 classId = 1; classId < MAX_CLASSES; ++classId)
+            rates[classId].assign(maxLevel, 0.0f);
+
+        auto queryResult = WorldDatabase.PQuery("SELECT class, level, rate FROM %s ORDER BY class, level", tableName);
+        uint32 loaded = 0;
+        if (queryResult)
+        {
+            do
+            {
+                Field* fields = queryResult->Fetch();
+                uint32 const classId = fields[0].GetUInt32();
+                uint32 const level = fields[1].GetUInt32();
+                float const rate = fields[2].GetFloat();
+
+                if (classId == 0 || classId >= MAX_CLASSES || !(convertEnumToFlag(classId) & CLASSMASK_ALL_PLAYABLE) ||
+                    level == 0 || level > maxLevel || rate <= 0.0f)
+                {
+                    sLog.outErrorDb("Invalid row in `%s`: class=%u level=%u rate=%g, ignoring.", tableName, classId, level, rate);
+                    continue;
+                }
+
+                rates[classId][level - 1] = rate;
+                ++loaded;
+            }
+            while (queryResult->NextRow());
+        }
+
+        for (uint32 classId = 1; classId < MAX_CLASSES; ++classId)
+        {
+            if (!(convertEnumToFlag(classId) & CLASSMASK_ALL_PLAYABLE) || !sChrClassesStore.LookupEntry(classId))
+                continue;
+
+            std::vector<float>& classRates = rates[classId];
+            if (classRates.front() <= 0.0f || classRates[std::min<uint32>(59, maxLevel - 1)] <= 0.0f)
+            {
+                for (uint32 level = 1; level <= maxLevel; ++level)
+                    classRates[level - 1] = getFallbackRate(classId, level, dodge);
+                continue;
+            }
+
+            // Sniffed Vanilla data is intentionally sparse. Fill missing
+            // class/level pairs by interpolating between the nearest samples.
+            for (uint32 i = 1; i < maxLevel; ++i)
+            {
+                if (classRates[i] > 0.0f)
+                    continue;
+
+                uint32 next = i + 1;
+                while (next < maxLevel && classRates[next] <= 0.0f)
+                    ++next;
+
+                if (next < maxLevel)
+                {
+                    float const fraction = float(i - (i - 1)) / float(next - (i - 1));
+                    classRates[i] = classRates[i - 1] + (classRates[next] - classRates[i - 1]) * fraction;
+                }
+                else
+                    classRates[i] = classRates[i - 1];
+            }
+        }
+
+        if (loaded)
+            sLog.outString(">> Loaded %u %s definitions", loaded, tableName);
+        else
+            sLog.outErrorDb("Table `%s` is missing or empty; using the legacy linear agility rates.", tableName);
+    };
+
+    loadRates("player_crit_per_agility", m_playerCritPerAgility, false);
+    loadRates("player_dodge_per_agility", m_playerDodgePerAgility, true);
+}
+
+float ObjectMgr::GetPlayerCritPerAgility(uint32 classId, uint32 level) const
+{
+    if (classId >= MAX_CLASSES || m_playerCritPerAgility[classId].empty())
+        return 1.0f;
+
+    return m_playerCritPerAgility[classId][std::min<uint32>(std::max<uint32>(1, level), m_playerCritPerAgility[classId].size()) - 1];
+}
+
+float ObjectMgr::GetPlayerDodgePerAgility(uint32 classId, uint32 level) const
+{
+    if (classId >= MAX_CLASSES || m_playerDodgePerAgility[classId].empty())
+        return 1.0f;
+
+    return m_playerDodgePerAgility[classId][std::min<uint32>(std::max<uint32>(1, level), m_playerDodgePerAgility[classId].size()) - 1];
+}
+
 void ObjectMgr::LoadStandingList(uint32 dateBegin)
 {
     HonorStanding Standing;
@@ -9131,12 +9271,18 @@ void ObjectMgr::LoadVendors()
  */
 void ObjectMgr::LoadActiveEntities(Map* _map)
 {
+    auto belongsToMapPartition = [_map](float x, float y)
+    {
+        return !sWorld.getConfig(CONFIG_BOOL_CONTINENTS_INSTANCIATE) || !_map->IsContinent() ||
+            sMapMgr.GetContinentInstanceId(_map->GetId(), x, y) == _map->GetInstanceId();
+    };
+
     // Load active objects for _map
     if (sWorld.isForceLoadMap(_map->GetId()))
     {
         for (CreatureDataMap::const_iterator itr = mCreatureDataMap.begin(); itr != mCreatureDataMap.end(); ++itr)
         {
-            if (itr->second.mapid == _map->GetId())
+            if (itr->second.mapid == _map->GetId() && belongsToMapPartition(itr->second.posX, itr->second.posY))
                 _map->ForceLoadGrid(itr->second.posX, itr->second.posY);
         }
     }
@@ -9146,14 +9292,16 @@ void ObjectMgr::LoadActiveEntities(Map* _map)
         for (auto itr = bounds.first; itr != bounds.second; ++itr)
         {
             CreatureData const& data = mCreatureDataMap[itr->second];
-            _map->ForceLoadGrid(data.posX, data.posY);
+            if (belongsToMapPartition(data.posX, data.posY))
+                _map->ForceLoadGrid(data.posX, data.posY);
         }
 
         bounds = m_activeGameObjects.equal_range(_map->GetId());
         for (auto itr = bounds.first; itr != bounds.second; ++itr)
         {
             GameObjectData const& data = mGameObjectDataMap[itr->second];
-            _map->ForceLoadGrid(data.posX, data.posY);
+            if (belongsToMapPartition(data.posX, data.posY))
+                _map->ForceLoadGrid(data.posX, data.posY);
         }
     }
 

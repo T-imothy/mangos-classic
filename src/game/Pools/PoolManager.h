@@ -29,19 +29,20 @@ struct MapEntry;
 
 struct PoolTemplateData
 {
-    PoolTemplateData() : mapEntry(nullptr), MaxLimit(0), AutoSpawn(false) {}
+    PoolTemplateData() : mapEntry(nullptr), instanceId(0), MaxLimit(0), AutoSpawn(false) {}
 
     MapEntry const* mapEntry;                               // Map id used for pool creature/gameobject spams. In case non-instanceable map
     // it can be not unique but base at sharing same pool system dynamic data in this case this is not important.
     // nullptr is no spawns by some reason
+    uint32 instanceId;                                     // internal continent partition, or 0 for normal maps
     uint32  MaxLimit;
     bool AutoSpawn;                                         // spawn at pool system start (not part of another pool and not part of event spawn)
     std::string description;
 
     // helpers
-    bool CanBeSpawnedAtMap(MapEntry const* entry) const
+    bool CanBeSpawnedAtMap(MapEntry const* entry, uint32 mapInstanceId) const
     {
-        return mapEntry && mapEntry == entry;
+        return mapEntry && mapEntry == entry && instanceId == mapInstanceId;
     }
 };
 
