@@ -1645,7 +1645,7 @@ void Player::UpdateAI(const uint32 diff, bool minimal)
 {
     if (m_playerbotAI)
     {
-        m_playerbotAI->UpdateAI(diff);
+        m_playerbotAI->UpdateAI(diff, minimal);
     }
 
     if (m_playerbotMgr)

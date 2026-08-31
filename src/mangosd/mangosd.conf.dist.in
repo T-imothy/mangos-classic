@@ -224,6 +224,26 @@ Spawns.ZoneArea = 0
 #        Default: 3
 #        Don't put more thread then your number of CPU threads -1 for this to work stable.
 #
+#    Playerbot.StaggerBackgroundUpdates
+#        Spread non-critical background bot updates across world ticks instead of updating
+#        every background bot on the same tick. Bots near real players, grouped with a real
+#        player, in combat, or in a battleground are still updated immediately.
+#        Default: 1 (enable)
+#
+#    PerformanceLog.Enabled
+#        Enable world, map, and Playerbot performance diagnostics.
+#        Default: 1 (enable)
+#
+#    PerformanceLog.SlowWorldUpdateMs
+#    PerformanceLog.SlowMapUpdateMs
+#    PerformanceLog.SlowBotUpdateMs
+#        Write a detailed record when the corresponding update meets or exceeds this time.
+#        Defaults: 200, 100, and 50 milliseconds.
+#
+#    PerformanceLog.SummaryIntervalMs
+#        Interval for aggregate world update summaries.
+#        Default: 60000 (one minute)
+#
 #    MaxCoreStuckTime
 #        Periodically check if the process got freezed, if this is the case force crash after the specified
 #        amount of seconds. Must be > 0. Recommended > 10 secs if you use this.
@@ -273,6 +293,12 @@ PathFinder.OptimizePath = 1
 PathFinder.NormalizeZ = 0
 UpdateUptimeInterval = 10
 MapUpdate.Threads = 3
+Playerbot.StaggerBackgroundUpdates = 1
+PerformanceLog.Enabled = 1
+PerformanceLog.SlowWorldUpdateMs = 200
+PerformanceLog.SlowMapUpdateMs = 100
+PerformanceLog.SlowBotUpdateMs = 50
+PerformanceLog.SummaryIntervalMs = 60000
 MaxCoreStuckTime = 0
 AddonChannel = 1
 CleanCharacterDB = 1
@@ -307,6 +333,16 @@ MaxWhoListReturns = 49
 #        Logfile name
 #        Default: "Server.log"
 #                 "" - Empty name disable creating log file
+#
+#    PerformanceLogFile
+#        Flushed performance diagnostics for world, map, and Playerbot updates. Keeping this
+#        beside the matching crash dump and PDB makes post-crash analysis substantially easier.
+#        Default: "Performance.log"
+#                 "" - Empty name disables the performance log file
+#
+#    PerformanceLogTimestamp
+#        Add the server start timestamp to PerformanceLogFile.
+#        Default: 0
 #
 #    PacketLogFile
 #        Description: Binary packet logging file for the world server.
@@ -419,6 +455,8 @@ PidFile = ""
 LogLevel = 1
 LogTime = 0
 LogFile = "Server.log"
+PerformanceLogFile = "Performance.log"
+PerformanceLogTimestamp = 0
 PacketLogFile = ""
 LogTimestamp = 0
 LogFileLevel = 0

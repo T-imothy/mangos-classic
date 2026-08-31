@@ -623,6 +623,12 @@ void World::LoadConfigSettings(bool reload)
     }
 
     setConfig(CONFIG_UINT32_NUM_MAP_THREADS, "MapUpdate.Threads", 3);
+    setConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED, "PerformanceLog.Enabled", true);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS, "PerformanceLog.SlowWorldUpdateMs", 200, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS, "PerformanceLog.SlowMapUpdateMs", 100, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_BOT_MS, "PerformanceLog.SlowBotUpdateMs", 50, 1);
+    setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SUMMARY_INTERVAL_MS, "PerformanceLog.SummaryIntervalMs", 60000, 1000);
+    setConfig(CONFIG_BOOL_PLAYERBOT_STAGGER_BACKGROUND_UPDATES, "Playerbot.StaggerBackgroundUpdates", true);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_ORANGE, "SkillChance.Orange", 100);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_YELLOW, "SkillChance.Yellow", 75);
     setConfig(CONFIG_UINT32_SKILL_CHANCE_GREEN,  "SkillChance.Green",  25);
@@ -1512,6 +1518,12 @@ void World::Update(uint32 diff)
     m_currentTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
     m_currentDiff = diff;
 
+    const bool performanceLogging = getConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED);
+    const uint32 performanceWorldStart = m_currentMSTime;
+    uint32 performanceBotElapsed = 0;
+    uint32 performanceSessionElapsed = 0;
+    uint32 performanceMapElapsed = 0;
+
 #ifdef ENABLE_PLAYERBOTS
     m_currentDiffSum += diff;
     m_currentDiffSumIndex++;
@@ -1595,15 +1607,19 @@ void World::Update(uint32 diff)
         m_timers[WUPDATE_AHBOT].Reset();
     }
 #endif
+    const uint32 performanceBotStart = WorldTimer::getMSTime();
     sRandomPlayerbotMgr.UpdateAI(diff);
     sRandomPlayerbotMgr.UpdateSessions(diff);
+    performanceBotElapsed = WorldTimer::getMSTimeDiff(performanceBotStart, WorldTimer::getMSTime());
 #endif
 
     /// <li> Handle session updates
 #ifdef BUILD_METRICS
     auto preSessionTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
 #endif
+    const uint32 performanceSessionStart = WorldTimer::getMSTime();
     UpdateSessions(diff);
+    performanceSessionElapsed = WorldTimer::getMSTimeDiff(performanceSessionStart, WorldTimer::getMSTime());
 
     /// <li> Update uptime table
     if (m_timers[WUPDATE_UPTIME].Passed())
@@ -1620,7 +1636,9 @@ void World::Update(uint32 diff)
 #ifdef BUILD_METRICS
     auto preMapTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
 #endif
+    const uint32 performanceMapStart = WorldTimer::getMSTime();
     sMapMgr.Update(diff);
+    performanceMapElapsed = WorldTimer::getMSTimeDiff(performanceMapStart, WorldTimer::getMSTime());
 #ifdef BUILD_METRICS
     auto postMapTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
 #endif
@@ -1700,6 +1718,63 @@ void World::Update(uint32 diff)
 
     // cleanup unused GridMap objects as well as VMaps
     sTerrainMgr.Update(diff);
+
+    if (performanceLogging)
+    {
+        const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceWorldStart, WorldTimer::getMSTime());
+        const uint32 measuredElapsed = performanceBotElapsed + performanceSessionElapsed + performanceMapElapsed;
+        const uint32 performanceOtherElapsed = performanceTotalElapsed > measuredElapsed ? performanceTotalElapsed - measuredElapsed : 0;
+        const uint32 slowWorldThreshold = getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS);
+
+        static uint32 performanceWindowStart = 0;
+        static uint64 performanceWindowUpdates = 0;
+        static uint64 performanceWindowTotal = 0;
+        static uint64 performanceWindowBots = 0;
+        static uint64 performanceWindowSessions = 0;
+        static uint64 performanceWindowMaps = 0;
+        static uint32 performanceWindowMaximum = 0;
+        static uint32 performanceWindowSlowUpdates = 0;
+
+        if (!performanceWindowStart)
+            performanceWindowStart = performanceWorldStart;
+
+        ++performanceWindowUpdates;
+        performanceWindowTotal += performanceTotalElapsed;
+        performanceWindowBots += performanceBotElapsed;
+        performanceWindowSessions += performanceSessionElapsed;
+        performanceWindowMaps += performanceMapElapsed;
+        performanceWindowMaximum = std::max(performanceWindowMaximum, performanceTotalElapsed);
+
+        if (performanceTotalElapsed >= slowWorldThreshold)
+        {
+            ++performanceWindowSlowUpdates;
+            sLog.outPerformance("SLOW_WORLD loop=%u total=%u ms input_diff=%u ms bots=%u ms sessions=%u ms maps=%u ms other=%u ms sessions_online=%u",
+                m_worldLoopCounter.load(std::memory_order_relaxed), performanceTotalElapsed, diff, performanceBotElapsed,
+                performanceSessionElapsed, performanceMapElapsed, performanceOtherElapsed, static_cast<uint32>(GetActiveSessionCount()));
+        }
+
+        const uint32 performanceWindowElapsed = WorldTimer::getMSTimeDiff(performanceWindowStart, WorldTimer::getMSTime());
+        if (performanceWindowElapsed >= getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SUMMARY_INTERVAL_MS))
+        {
+            const uint64 updateCount = std::max<uint64>(1, performanceWindowUpdates);
+            sLog.outPerformance("WORLD_SUMMARY window=%u ms updates=%llu avg=%llu ms max=%u ms slow=%u avg_bots=%llu ms avg_sessions=%llu ms avg_maps=%llu ms sessions_online=%u map_threads=%u",
+                performanceWindowElapsed, static_cast<unsigned long long>(performanceWindowUpdates),
+                static_cast<unsigned long long>(performanceWindowTotal / updateCount), performanceWindowMaximum,
+                performanceWindowSlowUpdates, static_cast<unsigned long long>(performanceWindowBots / updateCount),
+                static_cast<unsigned long long>(performanceWindowSessions / updateCount),
+                static_cast<unsigned long long>(performanceWindowMaps / updateCount), static_cast<uint32>(GetActiveSessionCount()),
+                getConfig(CONFIG_UINT32_NUM_MAP_THREADS));
+
+            performanceWindowStart = WorldTimer::getMSTime();
+            performanceWindowUpdates = 0;
+            performanceWindowTotal = 0;
+            performanceWindowBots = 0;
+            performanceWindowSessions = 0;
+            performanceWindowMaps = 0;
+            performanceWindowMaximum = 0;
+            performanceWindowSlowUpdates = 0;
+        }
+    }
 #ifdef BUILD_METRICS
     auto updateEndTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
     long long total = (updateEndTime - m_currentTime).count();
