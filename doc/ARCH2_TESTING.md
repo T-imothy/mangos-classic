@@ -7,9 +7,11 @@ This branch is an isolated scalability experiment built on the deployed ManTech 
 - Multiple asynchronous database read workers while all writes and transactions remain on one ordered lane.
 - A per-database callback time budget so database bursts cannot consume an unlimited world tick.
 - Socketless Playerbot session admission throttling; real client sessions always bypass the bot limit.
+- Priority database operation and callback lanes for real-player character enumeration and world entry, preventing bot-holder backlogs from blocking login.
 - Bounded movement broadcast backpressure with client-local coalescing and movement-only last-resort eviction.
 - Per-map adaptive visibility in addition to the existing global adaptive controller.
 - Separate workers for disjoint active-cell discovery and minimal AI updates for inactive bots.
+- Per-thread Detour navmesh queries so parallel bot workers never share mutable pathfinding search state.
 - Accumulated core-update cadence for inactive bots; combat, battleground, grouped, and real-player-adjacent bots remain fully active.
 - Timed continent-partition startup diagnostics.
 - Working-set/private-memory and database-queue fields in `WORLD_SUMMARY` performance records.

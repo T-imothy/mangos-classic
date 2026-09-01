@@ -35,6 +35,7 @@ class SqlDelayThread : public MaNGOS::Runnable
 {
     private:
         mutable std::mutex m_queueMutex;
+        std::queue<std::unique_ptr<SqlOperation>> m_prioritySqlQueue; ///< Real-player admission and loading
         std::queue<std::unique_ptr<SqlOperation>> m_sqlQueue;   ///< Queue of SQL statements
         Database* m_dbEngine;                                   ///< Pointer to used Database engine
         SqlConnection* m_dbConnection;                          ///< Pointer to DB connection
@@ -48,10 +49,13 @@ class SqlDelayThread : public MaNGOS::Runnable
         ~SqlDelayThread();
 
         ///< Put sql statement to delay queue
-        bool Delay(SqlOperation* sql)
+        bool Delay(SqlOperation* sql, bool highPriority = false)
         {
             std::lock_guard<std::mutex> guard(m_queueMutex);
-            m_sqlQueue.push(std::unique_ptr<SqlOperation>(sql));
+            if (highPriority)
+                m_prioritySqlQueue.push(std::unique_ptr<SqlOperation>(sql));
+            else
+                m_sqlQueue.push(std::unique_ptr<SqlOperation>(sql));
             return true;
         }
 
@@ -60,7 +64,7 @@ class SqlDelayThread : public MaNGOS::Runnable
         size_t PendingCount() const
         {
             std::lock_guard<std::mutex> guard(m_queueMutex);
-            return m_sqlQueue.size();
+            return m_prioritySqlQueue.size() + m_sqlQueue.size();
         }
 };
 #endif                                                      //__SQLDELAYTHREAD_H

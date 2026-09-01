@@ -96,7 +96,7 @@ bool SqlQuery::Execute(SqlConnection* conn)
     /// execute the query and store the result in the callback
     m_callback->SetResult(conn->Query(&m_sql[0]));
     /// add the callback to the sql result queue of the thread it originated from
-    m_queue->Add(m_callback);
+    m_queue->Add(m_callback, m_highPriority);
 
     return true;
 }
@@ -113,10 +113,18 @@ void SqlResultQueue::Update(uint32 maxMilliseconds)
         std::unique_ptr<MaNGOS::IQueryCallback> callback;
         {
             std::lock_guard<std::mutex> guard(m_mutex);
-            if (m_queue.empty())
+            if (m_priorityQueue.empty() && m_queue.empty())
                 break;
-            callback = std::move(m_queue.front());
-            m_queue.pop();
+            if (!m_priorityQueue.empty())
+            {
+                callback = std::move(m_priorityQueue.front());
+                m_priorityQueue.pop();
+            }
+            else
+            {
+                callback = std::move(m_queue.front());
+                m_queue.pop();
+            }
         }
 
         callback->Execute();
@@ -134,27 +142,30 @@ void SqlResultQueue::Update(uint32 maxMilliseconds)
     }
 }
 
-void SqlResultQueue::Add(MaNGOS::IQueryCallback* callback)
+void SqlResultQueue::Add(MaNGOS::IQueryCallback* callback, bool highPriority)
 {
     std::lock_guard<std::mutex> guard(m_mutex);
-    m_queue.push(std::unique_ptr<MaNGOS::IQueryCallback>(callback));
+    if (highPriority)
+        m_priorityQueue.push(std::unique_ptr<MaNGOS::IQueryCallback>(callback));
+    else
+        m_queue.push(std::unique_ptr<MaNGOS::IQueryCallback>(callback));
 }
 
 size_t SqlResultQueue::PendingCount() const
 {
     std::lock_guard<std::mutex> guard(m_mutex);
-    return m_queue.size();
+    return m_priorityQueue.size() + m_queue.size();
 }
 
-bool SqlQueryHolder::Execute(MaNGOS::IQueryCallback* callback, SqlDelayThread* thread, SqlResultQueue* queue)
+bool SqlQueryHolder::Execute(MaNGOS::IQueryCallback* callback, SqlDelayThread* thread, SqlResultQueue* queue, bool highPriority)
 {
     if (!callback || !thread || !queue)
         return false;
 
     /// delay the execution of the queries, sync them with the delay thread
     /// which will in turn resync on execution (via the queue) and call back
-    SqlQueryHolderEx* holderEx = new SqlQueryHolderEx(this, callback, queue);
-    thread->Delay(holderEx);
+    SqlQueryHolderEx* holderEx = new SqlQueryHolderEx(this, callback, queue, highPriority);
+    thread->Delay(holderEx, highPriority);
     return true;
 }
 
@@ -259,7 +270,7 @@ bool SqlQueryHolderEx::Execute(SqlConnection* conn)
     }
 
     /// sync with the caller thread
-    m_queue->Add(m_callback);
+    m_queue->Add(m_callback, m_highPriority);
 
     return true;
 }
