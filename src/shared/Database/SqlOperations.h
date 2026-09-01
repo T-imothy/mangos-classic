@@ -91,12 +91,13 @@ class SqlQueryHolderEx;                                     /// points to a hold
 class SqlResultQueue
 {
     private:
-        std::mutex m_mutex;
+        mutable std::mutex m_mutex;
         std::queue<std::unique_ptr<MaNGOS::IQueryCallback>> m_queue;
 
     public:
-        void Update();
+        void Update(uint32 maxMilliseconds = 0);
         void Add(MaNGOS::IQueryCallback*);
+        size_t PendingCount() const;
 };
 
 class SqlQuery : public SqlOperation

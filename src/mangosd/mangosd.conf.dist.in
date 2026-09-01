@@ -53,10 +53,18 @@ ConfVersion=2024020101
 #    CharacterDatabaseConnections
 #    LogsDatabaseConnections
 #        Amount of connections to database which will be used for SELECT queries. Maximum 16 connections per database.
-#        Please, note, for data consistency only one connection for each database is used for transactions and async SELECTs.
-#        So formula to find out how many connections will be established: X = #_connections + 1
+#        Transactions stay on one ordered worker connection. Async SELECTs can use
+#        additional read workers configured below.
 #        Default: 1 connection for SELECT statements
-#   
+#
+#    LoginDatabaseWorkerThreads
+#    WorldDatabaseWorkerThreads
+#    CharacterDatabaseWorkerThreads
+#    LogsDatabaseWorkerThreads
+#        Ordered asynchronous database workers. Worker zero owns all writes and
+#        transactions; extra workers execute asynchronous reads only.
+#        Default: 1
+#
 #    MaxPingTime
 #        Settings for maximum database-ping interval (minutes between pings)
 #
@@ -89,6 +97,10 @@ LoginDatabaseConnections = 1
 WorldDatabaseConnections = 1
 CharacterDatabaseConnections = 1
 LogsDatabaseConnections = 1
+LoginDatabaseWorkerThreads = 1
+WorldDatabaseWorkerThreads = 2
+CharacterDatabaseWorkerThreads = 3
+LogsDatabaseWorkerThreads = 1
 MaxPingTime = 30
 WorldServerPort = 8085
 BindIP = "0.0.0.0"
@@ -275,6 +287,15 @@ Spawns.ZoneArea = 0
 #        Visibility floor and the size of each recovery/load-shedding step.
 #        Defaults: 70 and 5 percent
 #
+#    AdaptiveLoad.PerMap.Enabled
+#    AdaptiveLoad.PerMap.SlowMs
+#    AdaptiveLoad.PerMap.RecoverMs
+#    AdaptiveLoad.PerMap.MinVisibilityPercent
+#    AdaptiveLoad.PerMap.VisibilityStepPercent
+#        Apply load shedding independently to a slow map or continent partition.
+#        Fast maps retain full visibility while an overloaded map recovers.
+#        Defaults: 1, 100, 50, 60, and 5
+#
 #    MovementCompression.Enabled
 #        Group nearby movement broadcasts into the Vanilla client's SMSG_COMPRESSED_MOVES format.
 #        Playerbot sessions continue to receive original movement packets.
@@ -289,10 +310,45 @@ Spawns.ZoneArea = 0
 #        A client is always assigned to one lane, preserving packet order.
 #        Default: 2
 #
+#    MapUpdate.IdleBotThreads
+#        Experimental worker lanes for minimal AI updates of bots that are away
+#        from real players, combat, battlegrounds, and real-player groups.
+#        Zero keeps idle bot AI on the owning map thread.
+#        Default: 2
+#
+#    MapUpdate.CellThreads
+#    MapUpdate.CellChunkSize
+#        Traverse disjoint active cells in worker chunks, then merge the discovered
+#        object sets before ordered gameplay updates. Zero threads disables it.
+#        Defaults: 2 threads and 64 cells
+#
+#    Playerbot.IdleCoreUpdateSkip
+#        Core update cadence for the same inactive bots. Elapsed time is accumulated
+#        and supplied on the next update so timers remain correct. One disables it.
+#        Default: 4
+#
 #    MovementBroadcast.MaxQueuedBatches
 #        Per-lane backpressure limit. Map workers wait briefly if a lane reaches it
 #        instead of dropping or reordering movement.
 #        Default: 32768
+#
+#    MovementBroadcast.OverloadWaitMs
+#    MovementBroadcast.CoalesceOnOverload
+#        Bound map-thread backpressure. After the short wait, the newest movement
+#        state replaces an older batch for the same client; as a last resort the
+#        oldest movement-only batch is discarded. Playerbot internal packets never
+#        enter this queue.
+#        Defaults: 2 milliseconds and 1 (enable)
+#
+#    Database.CallbackBudgetMs
+#        Maximum world-thread time spent per database callback queue each tick.
+#        Remaining callbacks stay queued for the next tick.
+#        Default: 5 milliseconds
+#
+#    Login.BotSessionsPerTick
+#        Maximum socketless Playerbot sessions admitted per world tick. Real client
+#        sessions bypass this limit. Zero disables throttling.
+#        Default: 100
 #
 #    DynamicRespawn.Range
 #    DynamicRespawn.PercentPerPlayer
@@ -377,7 +433,11 @@ UpdateUptimeInterval = 10
 MapUpdate.Threads = 3
 MapUpdate.ObjectThreads = 4
 MapUpdate.VisibilityChunkSize = 64
+MapUpdate.IdleBotThreads = 2
+MapUpdate.CellThreads = 2
+MapUpdate.CellChunkSize = 64
 Playerbot.StaggerBackgroundUpdates = 1
+Playerbot.IdleCoreUpdateSkip = 4
 PerformanceLog.Enabled = 1
 PerformanceLog.SlowWorldUpdateMs = 200
 PerformanceLog.SlowMapUpdateMs = 100
@@ -393,10 +453,19 @@ AdaptiveLoad.SlowWorldMs = 250
 AdaptiveLoad.RecoverWorldMs = 120
 AdaptiveLoad.MinVisibilityPercent = 70
 AdaptiveLoad.VisibilityStepPercent = 5
+AdaptiveLoad.PerMap.Enabled = 1
+AdaptiveLoad.PerMap.SlowMs = 100
+AdaptiveLoad.PerMap.RecoverMs = 50
+AdaptiveLoad.PerMap.MinVisibilityPercent = 60
+AdaptiveLoad.PerMap.VisibilityStepPercent = 5
 MovementCompression.Enabled = 1
 MovementCompression.MinPackets = 3
 MovementBroadcast.Threads = 2
 MovementBroadcast.MaxQueuedBatches = 32768
+MovementBroadcast.OverloadWaitMs = 2
+MovementBroadcast.CoalesceOnOverload = 1
+Database.CallbackBudgetMs = 5
+Login.BotSessionsPerTick = 100
 DynamicRespawn.Range = -1
 DynamicRespawn.PercentPerPlayer = 0
 DynamicRespawn.MaxReductionRate = 0

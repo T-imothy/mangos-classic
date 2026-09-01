@@ -47,6 +47,8 @@
 #include <deque>
 #include <memory>
 #include <thread>
+#include <chrono>
+#include <atomic>
 #include <cstdarg>
 #include <iostream>
 #include <zlib.h>
@@ -125,7 +127,9 @@ namespace
     class MovementBroadcastPool
     {
         public:
-            MovementBroadcastPool(uint32 threadCount, uint32 maxQueuedBatches) : m_maxQueuedBatches(maxQueuedBatches)
+            MovementBroadcastPool(uint32 threadCount, uint32 maxQueuedBatches, uint32 overloadWaitMs, bool coalesceOnOverload)
+                : m_maxQueuedBatches(maxQueuedBatches), m_overloadWaitMs(overloadWaitMs),
+                  m_coalesceOnOverload(coalesceOnOverload), m_coalescedBatches(0), m_droppedBatches(0)
             {
                 m_lanes.reserve(threadCount);
                 for (uint32 i = 0; i < threadCount; ++i)
@@ -163,9 +167,36 @@ namespace
                 size_t const laneIndex = (reinterpret_cast<uintptr_t>(socket.get()) >> 4) % m_lanes.size();
                 Lane& lane = *m_lanes[laneIndex];
                 std::unique_lock<std::mutex> guard(lane.lock);
-                lane.spaceAvailable.wait(guard, [&]() { return lane.stopping || lane.jobs.size() < m_maxQueuedBatches; });
+                bool const hasSpace = lane.spaceAvailable.wait_for(guard, std::chrono::milliseconds(m_overloadWaitMs),
+                    [&]() { return lane.stopping || lane.jobs.size() < m_maxQueuedBatches; });
                 if (lane.stopping)
                     return;
+
+                if (!hasSpace)
+                {
+                    if (m_coalesceOnOverload)
+                    {
+                        for (auto itr = lane.jobs.rbegin(); itr != lane.jobs.rend(); ++itr)
+                        {
+                            if (itr->socket.get() == socket.get())
+                            {
+                                itr->packets = std::move(packets);
+                                itr->compressionMinimum = compressionMinimum;
+                                uint64 const count = ++m_coalescedBatches;
+                                if ((count % 1000) == 1)
+                                    sLog.outPerformance("MOVEMENT_QUEUE_OVERLOAD coalesced=" UI64FMTD " dropped=" UI64FMTD " lane_depth=%u",
+                                        count, m_droppedBatches.load(), static_cast<uint32>(lane.jobs.size()));
+                                return;
+                            }
+                        }
+                    }
+
+                    lane.jobs.pop_front();
+                    uint64 const count = ++m_droppedBatches;
+                    if ((count % 1000) == 1)
+                        sLog.outPerformance("MOVEMENT_QUEUE_OVERLOAD coalesced=" UI64FMTD " dropped=" UI64FMTD " lane_depth=%u",
+                            m_coalescedBatches.load(), count, static_cast<uint32>(lane.jobs.size()));
+                }
 
                 lane.jobs.push_back(Job{std::move(socket), std::move(packets), compressionMinimum});
                 guard.unlock();
@@ -225,6 +256,10 @@ namespace
             }
 
             uint32 m_maxQueuedBatches;
+            uint32 m_overloadWaitMs;
+            bool m_coalesceOnOverload;
+            std::atomic<uint64> m_coalescedBatches;
+            std::atomic<uint64> m_droppedBatches;
             std::vector<std::unique_ptr<Lane>> m_lanes;
     };
 
@@ -232,7 +267,9 @@ namespace
     {
         static MovementBroadcastPool pool(
             sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_THREADS),
-            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_MAX_QUEUED_BATCHES));
+            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_MAX_QUEUED_BATCHES),
+            sWorld.getConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_OVERLOAD_WAIT_MS),
+            sWorld.getConfig(CONFIG_BOOL_MOVEMENT_BROADCAST_COALESCE));
         return pool;
     }
 

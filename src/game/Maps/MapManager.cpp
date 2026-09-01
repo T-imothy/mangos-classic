@@ -62,6 +62,22 @@ void MapManager::Initialize()
         m_objectUpdater.activate(objectThreads);
         sLog.outString(">> Parallel in-map object/visibility workers: %d", objectThreads);
     }
+
+#ifdef ENABLE_PLAYERBOTS
+    int const idleBotThreads = sWorld.getConfig(CONFIG_UINT32_MAP_IDLE_BOT_THREADS);
+    if (idleBotThreads > 0)
+    {
+        m_idleBotUpdater.activate(idleBotThreads);
+        sLog.outString(">> Parallel idle Playerbot AI workers: %d", idleBotThreads);
+    }
+#endif
+
+    int const cellThreads = sWorld.getConfig(CONFIG_UINT32_MAP_CELL_THREADS);
+    if (cellThreads > 0)
+    {
+        m_cellUpdater.activate(cellThreads);
+        sLog.outString(">> Parallel active-cell discovery workers: %d", cellThreads);
+    }
 }
 
 void MapManager::InitStateMachine()
@@ -106,8 +122,10 @@ void MapManager::CreateContinents()
                 ? std::vector<uint32>{MAP0_TOP_NORTH, MAP0_MIDDLE_NORTH, MAP0_IRONFORGE_AREA, MAP0_MIDDLE, MAP0_STORMWIND_AREA, MAP0_SOUTH}
                 : std::vector<uint32>{MAP1_NORTH, MAP1_DUROTAR, MAP1_UPPER_MIDDLE, MAP1_LOWER_MIDDLE, MAP1_VALLEY, MAP1_ORGRIMMAR, MAP1_SOUTH};
 
-        for (uint32 instanceId : partitions)
+        for (size_t partitionIndex = 0; partitionIndex < partitions.size(); ++partitionIndex)
         {
+            uint32 const instanceId = partitions[partitionIndex];
+            uint32 const partitionStart = WorldTimer::getMSTime();
             Map* m = new WorldMap(id, i_gridCleanUpDelay, instanceId);
             MaNGOS::unique_trackable_ptr<Map>& ptr = i_maps[MapID(id, instanceId)];
             ptr.reset(m);
@@ -118,8 +136,11 @@ void MapManager::CreateContinents()
             // normal parallel map updates, but startup construction must stay
             // ordered or multiple continent partitions can live-lock while
             // initializing the same global data.
-            sLog.outString(">> Initializing continent map %u partition %u", id, instanceId);
+            sLog.outString(">> Initializing continent map %u partition %u (%u/%u)", id, instanceId,
+                static_cast<uint32>(partitionIndex + 1), static_cast<uint32>(partitions.size()));
             m->Initialize(nullptr, true);
+            sLog.outString(">> Initialized continent map %u partition %u in %u ms", id, instanceId,
+                WorldTimer::getMSTimeDiff(partitionStart, WorldTimer::getMSTime()));
         }
     }
 }
@@ -584,6 +605,10 @@ void MapManager::UnloadAll()
         m_updater.deactivate();
     if (m_objectUpdater.activated())
         m_objectUpdater.deactivate();
+    if (m_idleBotUpdater.activated())
+        m_idleBotUpdater.deactivate();
+    if (m_cellUpdater.activated())
+        m_cellUpdater.deactivate();
 
     TerrainManager::Instance().UnloadAll();
 }

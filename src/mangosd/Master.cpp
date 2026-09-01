@@ -350,15 +350,16 @@ bool Master::_StartDB()
     ///- Get world database info from configuration file
     std::string dbstring = sConfig.GetStringDefault("WorldDatabaseInfo");
     int nConnections = sConfig.GetIntDefault("WorldDatabaseConnections", 1);
+    int nWorkers = sConfig.GetIntDefault("WorldDatabaseWorkerThreads", 1);
     if (dbstring.empty())
     {
         sLog.outError("Database not specified in configuration file");
         return false;
     }
-    sLog.outString("World Database total connections: %i", nConnections + 1);
+    sLog.outString("World Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
 
     ///- Initialise the world database
-    if (!WorldDatabase.Initialize(dbstring.c_str(), nConnections))
+    if (!WorldDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
         sLog.outError("Cannot connect to world database %s", dbstring.c_str());
         return false;
@@ -373,6 +374,7 @@ bool Master::_StartDB()
 
     dbstring = sConfig.GetStringDefault("CharacterDatabaseInfo");
     nConnections = sConfig.GetIntDefault("CharacterDatabaseConnections", 1);
+    nWorkers = sConfig.GetIntDefault("CharacterDatabaseWorkerThreads", 1);
     if (dbstring.empty())
     {
         sLog.outError("Character Database not specified in configuration file");
@@ -381,10 +383,10 @@ bool Master::_StartDB()
         WorldDatabase.HaltDelayThread();
         return false;
     }
-    sLog.outString("Character Database total connections: %i", nConnections + 1);
+    sLog.outString("Character Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
 
     ///- Initialise the Character database
-    if (!CharacterDatabase.Initialize(dbstring.c_str(), nConnections))
+    if (!CharacterDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
         sLog.outError("Cannot connect to Character database %s", dbstring.c_str());
 
@@ -404,6 +406,7 @@ bool Master::_StartDB()
     ///- Get login database info from configuration file
     dbstring = sConfig.GetStringDefault("LoginDatabaseInfo");
     nConnections = sConfig.GetIntDefault("LoginDatabaseConnections", 1);
+    nWorkers = sConfig.GetIntDefault("LoginDatabaseWorkerThreads", 1);
     if (dbstring.empty())
     {
         sLog.outError("Login database not specified in configuration file");
@@ -415,8 +418,8 @@ bool Master::_StartDB()
     }
 
     ///- Initialise the login database
-    sLog.outString("Login Database total connections: %i", nConnections + 1);
-    if (!LoginDatabase.Initialize(dbstring.c_str(), nConnections))
+    sLog.outString("Login Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
+    if (!LoginDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
         sLog.outError("Cannot connect to login database %s", dbstring.c_str());
 
@@ -438,6 +441,7 @@ bool Master::_StartDB()
     ///- Get logs database info from configuration file
     dbstring = sConfig.GetStringDefault("LogsDatabaseInfo", "");
     nConnections = sConfig.GetIntDefault("LogsDatabaseConnections", 1);
+    nWorkers = sConfig.GetIntDefault("LogsDatabaseWorkerThreads", 1);
     if (dbstring.empty())
     {
         sLog.outError("logs database not specified in configuration file");
@@ -450,8 +454,8 @@ bool Master::_StartDB()
     }
 
     ///- Initialise the logs database
-    sLog.outString("Logs Database total connections: %i", nConnections + 1);
-    if (!LogsDatabase.Initialize(dbstring.c_str(), nConnections))
+    sLog.outString("Logs Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
+    if (!LogsDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
         sLog.outError("Cannot connect to logs database %s", dbstring.c_str());
 

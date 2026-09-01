@@ -131,6 +131,7 @@ class Map : public GridRefManager<NGridType>
         static void DeleteFromWorld(Player* pl);        // player object will deleted at call
 
         void VisitNearbyCellsOf(WorldObject* obj, TypeContainerVisitor<MaNGOS::ObjectUpdater, GridTypeMapContainer> &gridVisitor, TypeContainerVisitor<MaNGOS::ObjectUpdater, WorldTypeMapContainer> &worldVisitor);
+        void CollectNearbyCellsOf(WorldObject* obj, std::vector<Cell>& cells);
         virtual void Update(const uint32&);
 
         void MessageBroadcast(Player const*, WorldPacket const&, bool to_self);
@@ -148,6 +149,7 @@ class Map : public GridRefManager<NGridType>
 
         float GetVisibilityDistance() const { return m_VisibleDistance; }
         void SetVisibilityDistanceScale(float scale);
+        void UpdateAdaptiveLoad(uint32 elapsedMilliseconds);
         // function for setting up visibility distance for maps on per-type/per-Id basis
         virtual void InitVisibilityDistance();
 
@@ -434,6 +436,10 @@ class Map : public GridRefManager<NGridType>
         uint32 m_unloadTimer;
         float m_VisibleDistance;
         float m_BaseVisibleDistance;
+        float m_GlobalVisibilityScale;
+        float m_LocalVisibilityScale;
+        uint32 m_LocalSlowStreak;
+        uint32 m_LocalRecoveryStreak;
         MapPersistentState* m_persistentState;
 
         MapRefManager m_mapRefManager;
@@ -524,6 +530,8 @@ class Map : public GridRefManager<NGridType>
         std::vector<uint32> m_activeZones;
         uint32 m_activeZonesTimer;
         bool hasRealPlayers;
+        std::unordered_map<uint32, uint32> m_idleBotCoreDiff;
+        std::unordered_map<uint32, uint32> m_idleBotCoreTicks;
 #endif
 };
 

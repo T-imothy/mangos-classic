@@ -24,6 +24,7 @@
 #include "MapUpdater.h"
 #include "MotionGenerators/MovementGenerator.h"
 #include "Entities/Object.h"
+#include "Entities/Player.h"
 #include "Entities/UpdateData.h"
 #include "Platform/Define.h"
 
@@ -62,14 +63,13 @@ class MapUpdateWorker : public Worker
 class GridCrawler : public Worker
 {
     public:
-        GridCrawler(Map& map, std::vector<Cell> &cells, uint32 diff, MapUpdater& updater) :
-            Worker(updater), m_map(map), m_cells(cells), m_diff(diff)
+        GridCrawler(Map& map, std::vector<Cell>&& cells, WorldObjectUnSet& objects, uint32 diff, MapUpdater& updater) :
+            Worker(updater), m_map(map), m_cells(std::move(cells)), m_objects(objects), m_diff(diff)
         {}
 
         void execute() override
         {
-            WorldObjectUnSet objToUpdate;
-            MaNGOS::ObjectUpdater obj_updater(objToUpdate, m_diff);
+            MaNGOS::ObjectUpdater obj_updater(m_objects, m_diff);
             TypeContainerVisitor<MaNGOS::ObjectUpdater, GridTypeMapContainer  > grid_object_update(obj_updater);    // For creature
             TypeContainerVisitor<MaNGOS::ObjectUpdater, WorldTypeMapContainer > world_object_update(obj_updater);   // For pets
 
@@ -84,7 +84,8 @@ class GridCrawler : public Worker
 
     private:
         Map& m_map;
-        std::vector<Cell> &m_cells;
+        std::vector<Cell> m_cells;
+        WorldObjectUnSet& m_objects;
         uint32 m_diff;
 };
 
@@ -108,5 +109,26 @@ class ObjectUpdateBuildWorker : public Worker
         std::vector<Object*> m_objects;
         UpdateDataMapType& m_updates;
 };
+
+#ifdef ENABLE_PLAYERBOTS
+class IdleBotAIUpdateWorker : public Worker
+{
+    public:
+        IdleBotAIUpdateWorker(Player& player, uint32 diff, MapUpdater& updater) :
+            Worker(updater), m_player(player), m_diff(diff)
+        {}
+
+        void execute() override
+        {
+            if (m_player.IsInWorld())
+                m_player.UpdateAI(m_diff, true);
+            GetWorker().update_finished();
+        }
+
+    private:
+        Player& m_player;
+        uint32 m_diff;
+};
+#endif
 
 #endif //_MAP_WORKERS_H_INCLUDED

@@ -89,6 +89,30 @@
 #include <cstdarg>
 #include <memory>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <psapi.h>
+#pragma comment(lib, "Psapi.lib")
+#endif
+
+namespace
+{
+    void GetProcessMemoryMegabytes(uint64& workingSetMb, uint64& privateMb)
+    {
+        workingSetMb = 0;
+        privateMb = 0;
+#ifdef _WIN32
+        PROCESS_MEMORY_COUNTERS_EX counters{};
+        counters.cb = sizeof(counters);
+        if (GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters), sizeof(counters)))
+        {
+            workingSetMb = counters.WorkingSetSize / (1024ULL * 1024ULL);
+            privateMb = counters.PrivateUsage / (1024ULL * 1024ULL);
+        }
+#endif
+    }
+}
+
 INSTANTIATE_SINGLETON_1(World);
 
 extern void LoadGameObjectModelList();
@@ -625,6 +649,9 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_NUM_MAP_THREADS, "MapUpdate.Threads", 3);
     setConfigMin(CONFIG_UINT32_MAP_OBJECT_THREADS, "MapUpdate.ObjectThreads", 4, 1);
     setConfigMin(CONFIG_UINT32_MAP_VISIBILITY_CHUNK_SIZE, "MapUpdate.VisibilityChunkSize", 64, 8);
+    setConfig(CONFIG_UINT32_MAP_IDLE_BOT_THREADS, "MapUpdate.IdleBotThreads", 2);
+    setConfig(CONFIG_UINT32_MAP_CELL_THREADS, "MapUpdate.CellThreads", 2);
+    setConfigMin(CONFIG_UINT32_MAP_CELL_CHUNK_SIZE, "MapUpdate.CellChunkSize", 64, 8);
     setConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED, "PerformanceLog.Enabled", true);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS, "PerformanceLog.SlowWorldUpdateMs", 200, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS, "PerformanceLog.SlowMapUpdateMs", 100, 1);
@@ -641,10 +668,20 @@ void World::LoadConfigSettings(bool reload)
     setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_RECOVER_WORLD_MS, "AdaptiveLoad.RecoverWorldMs", 120, 1);
     setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_MIN_VISIBILITY_PERCENT, "AdaptiveLoad.MinVisibilityPercent", 70, 25, 100);
     setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_VISIBILITY_STEP_PERCENT, "AdaptiveLoad.VisibilityStepPercent", 5, 1, 25);
+    setConfig(CONFIG_BOOL_ADAPTIVE_LOAD_PER_MAP_ENABLED, "AdaptiveLoad.PerMap.Enabled", true);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_SLOW_MS, "AdaptiveLoad.PerMap.SlowMs", 100, 1);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_RECOVER_MS, "AdaptiveLoad.PerMap.RecoverMs", 50, 1);
+    setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_MIN_VISIBILITY_PERCENT, "AdaptiveLoad.PerMap.MinVisibilityPercent", 60, 25, 100);
+    setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_STEP_PERCENT, "AdaptiveLoad.PerMap.VisibilityStepPercent", 5, 1, 25);
     setConfig(CONFIG_BOOL_MOVEMENT_COMPRESSION_ENABLED, "MovementCompression.Enabled", true);
     setConfigMin(CONFIG_UINT32_MOVEMENT_COMPRESSION_MIN_PACKETS, "MovementCompression.MinPackets", 3, 2);
     setConfigMin(CONFIG_UINT32_MOVEMENT_BROADCAST_THREADS, "MovementBroadcast.Threads", 2, 1);
     setConfigMin(CONFIG_UINT32_MOVEMENT_BROADCAST_MAX_QUEUED_BATCHES, "MovementBroadcast.MaxQueuedBatches", 32768, 128);
+    setConfig(CONFIG_UINT32_MOVEMENT_BROADCAST_OVERLOAD_WAIT_MS, "MovementBroadcast.OverloadWaitMs", 2);
+    setConfig(CONFIG_BOOL_MOVEMENT_BROADCAST_COALESCE, "MovementBroadcast.CoalesceOnOverload", true);
+    setConfigMin(CONFIG_UINT32_DATABASE_CALLBACK_BUDGET_MS, "Database.CallbackBudgetMs", 5, 1);
+    setConfig(CONFIG_UINT32_LOGIN_BOT_SESSIONS_PER_TICK, "Login.BotSessionsPerTick", 100);
+    setConfig(CONFIG_UINT32_PLAYERBOT_IDLE_CORE_UPDATE_SKIP, "Playerbot.IdleCoreUpdateSkip", 4);
     setConfig(CONFIG_FLOAT_DYN_RESPAWN_CHECK_RANGE, "DynamicRespawn.Range", -1.0f);
     setConfig(CONFIG_FLOAT_DYN_RESPAWN_MAX_REDUCTION_RATE, "DynamicRespawn.MaxReductionRate", 0.0f);
     setConfig(CONFIG_FLOAT_DYN_RESPAWN_PERCENT_PER_PLAYER, "DynamicRespawn.PercentPerPlayer", 0.0f);
@@ -1841,13 +1878,23 @@ void World::Update(uint32 diff)
         if (performanceWindowElapsed >= getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SUMMARY_INTERVAL_MS))
         {
             const uint64 updateCount = std::max<uint64>(1, performanceWindowUpdates);
-            sLog.outPerformance("WORLD_SUMMARY window=%u ms updates=%llu avg=%llu ms max=%u ms slow=%u avg_bots=%llu ms avg_sessions=%llu ms avg_maps=%llu ms sessions_online=%u map_threads=%u",
+            uint64 workingSetMb = 0;
+            uint64 privateMb = 0;
+            GetProcessMemoryMegabytes(workingSetMb, privateMb);
+            uint32 const pendingCallbacks = static_cast<uint32>(CharacterDatabase.GetPendingResultCount() +
+                WorldDatabase.GetPendingResultCount() + LoginDatabase.GetPendingResultCount());
+            uint32 const pendingDbOperations = static_cast<uint32>(CharacterDatabase.GetPendingAsyncOperationCount() +
+                WorldDatabase.GetPendingAsyncOperationCount() + LoginDatabase.GetPendingAsyncOperationCount() +
+                LogsDatabase.GetPendingAsyncOperationCount());
+            sLog.outPerformance("WORLD_SUMMARY window=%u ms updates=%llu avg=%llu ms max=%u ms slow=%u avg_bots=%llu ms avg_sessions=%llu ms avg_maps=%llu ms sessions_online=%u maps=%u map_threads=%u working_set_mb=%llu private_mb=%llu db_callbacks=%u db_operations=%u",
                 performanceWindowElapsed, static_cast<unsigned long long>(performanceWindowUpdates),
                 static_cast<unsigned long long>(performanceWindowTotal / updateCount), performanceWindowMaximum,
                 performanceWindowSlowUpdates, static_cast<unsigned long long>(performanceWindowBots / updateCount),
                 static_cast<unsigned long long>(performanceWindowSessions / updateCount),
                 static_cast<unsigned long long>(performanceWindowMaps / updateCount), static_cast<uint32>(GetActiveSessionCount()),
-                getConfig(CONFIG_UINT32_NUM_MAP_THREADS));
+                sMapMgr.GetNumInstances(), getConfig(CONFIG_UINT32_NUM_MAP_THREADS),
+                static_cast<unsigned long long>(workingSetMb), static_cast<unsigned long long>(privateMb),
+                pendingCallbacks, pendingDbOperations);
 
             performanceWindowStart = WorldTimer::getMSTime();
             performanceWindowUpdates = 0;
@@ -2314,8 +2361,28 @@ void World::UpdateSessions(uint32 diff)
             std::swap(m_sessionAddQueue, sessionQueueCopy);
         }
 
-        for (auto const& session : sessionQueueCopy)
+        std::deque<WorldSession*> deferredBots;
+        uint32 const botLimit = getConfig(CONFIG_UINT32_LOGIN_BOT_SESSIONS_PER_TICK);
+        uint32 botsAdded = 0;
+        for (WorldSession* session : sessionQueueCopy)
+        {
+#ifdef ENABLE_PLAYERBOTS
+            if (!session->HasClientSocket() && botLimit && botsAdded >= botLimit)
+            {
+                deferredBots.push_back(session);
+                continue;
+            }
+            if (!session->HasClientSocket())
+                ++botsAdded;
+#endif
             AddSession_(session);
+        }
+
+        if (!deferredBots.empty())
+        {
+            std::lock_guard<std::mutex> guard(m_sessionAddQueueLock);
+            m_sessionAddQueue.insert(m_sessionAddQueue.begin(), deferredBots.begin(), deferredBots.end());
+        }
     }
 
     ///- Then send an update signal to remaining ones
@@ -2405,9 +2472,10 @@ void World::InitResultQueue()
 void World::UpdateResultQueue()
 {
     // process async result queues
-    CharacterDatabase.ProcessResultQueue();
-    WorldDatabase.ProcessResultQueue();
-    LoginDatabase.ProcessResultQueue();
+    uint32 const budget = getConfig(CONFIG_UINT32_DATABASE_CALLBACK_BUDGET_MS);
+    CharacterDatabase.ProcessResultQueue(budget);
+    WorldDatabase.ProcessResultQueue(budget);
+    LoginDatabase.ProcessResultQueue(budget);
 }
 
 void World::UpdateRealmCharCount(uint32 accountId)

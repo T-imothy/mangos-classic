@@ -55,7 +55,7 @@ Database::AsyncQuery(Callable callback, const char* sql)
     {
         return false;
     }
-    return m_threadBody->Delay(new SqlQuery(sql, new MaNGOS::QueryCallback(std::move(callback)), m_pResultQueue));
+    return GetQueryDelayThread()->Delay(new SqlQuery(sql, new MaNGOS::QueryCallback(std::move(callback)), m_pResultQueue));
 }
 
 // -- PQuery / member --
@@ -133,7 +133,7 @@ Database::DelayQueryHolder(Class* object, void (Class::*method)(QueryResult*, Sq
 {
     ASYNC_DELAYHOLDER_BODY(holder)
     auto callback = std::bind(method, object, std::placeholders::_1, holder);
-    return holder->Execute(new MaNGOS::QueryCallback(std::move(callback)), m_threadBody, m_pResultQueue);
+    return holder->Execute(new MaNGOS::QueryCallback(std::move(callback)), GetQueryDelayThread(), m_pResultQueue);
 }
 
 template<class Class, typename ParamType1>
@@ -142,7 +142,7 @@ Database::DelayQueryHolder(Class* object, void (Class::*method)(QueryResult*, Sq
 {
     ASYNC_DELAYHOLDER_BODY(holder)
     auto callback = std::bind(method, object, std::placeholders::_1, holder, param1);
-    return holder->Execute(new MaNGOS::QueryCallback(std::move(callback)), m_threadBody, m_pResultQueue);
+    return holder->Execute(new MaNGOS::QueryCallback(std::move(callback)), GetQueryDelayThread(), m_pResultQueue);
 }
 
 #undef ASYNC_PQUERY_BODY

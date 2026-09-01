@@ -34,7 +34,7 @@ class SqlConnection;
 class SqlDelayThread : public MaNGOS::Runnable
 {
     private:
-        std::mutex m_queueMutex;
+        mutable std::mutex m_queueMutex;
         std::queue<std::unique_ptr<SqlOperation>> m_sqlQueue;   ///< Queue of SQL statements
         Database* m_dbEngine;                                   ///< Pointer to used Database engine
         SqlConnection* m_dbConnection;                          ///< Pointer to DB connection
@@ -57,5 +57,10 @@ class SqlDelayThread : public MaNGOS::Runnable
 
         virtual void Stop();                                ///< Stop event
         virtual void run();                                 ///< Main Thread loop
+        size_t PendingCount() const
+        {
+            std::lock_guard<std::mutex> guard(m_queueMutex);
+            return m_sqlQueue.size();
+        }
 };
 #endif                                                      //__SQLDELAYTHREAD_H

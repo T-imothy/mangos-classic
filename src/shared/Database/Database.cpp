@@ -98,7 +98,7 @@ Database::~Database()
     StopServer();
 }
 
-bool Database::Initialize(const char* infoString, int nConns /*= 1*/)
+bool Database::Initialize(const char* infoString, int nConns /*= 1*/, int nWorkers /*= 1*/)
 {
     // Enable logging of SQL commands (usually only GM commands)
     // (See method: PExecuteLog)
@@ -140,6 +140,19 @@ bool Database::Initialize(const char* infoString, int nConns /*= 1*/)
     if (!m_pAsyncConn->Initialize(infoString))
         return false;
 
+    nWorkers = std::max(1, std::min(nWorkers, MAX_CONNECTION_POOL_SIZE));
+    for (int i = 1; i < nWorkers; ++i)
+    {
+        SqlConnection* connection = CreateConnection();
+        if (!connection->Initialize(infoString))
+        {
+            delete connection;
+            StopServer();
+            return false;
+        }
+        m_pAsyncReadConnections.push_back(connection);
+    }
+
     m_pResultQueue = new SqlResultQueue;
 
     InitDelayThread();
@@ -156,36 +169,65 @@ void Database::StopServer()
     m_pResultQueue = nullptr;
     m_pAsyncConn = nullptr;
 
+    for (SqlConnection* connection : m_pAsyncReadConnections)
+        delete connection;
+    m_pAsyncReadConnections.clear();
+
     for (auto& m_pQueryConnection : m_pQueryConnections)
         delete m_pQueryConnection;
 
     m_pQueryConnections.clear();
 }
 
-SqlDelayThread* Database::CreateDelayThread()
+SqlDelayThread* Database::CreateDelayThread(SqlConnection* connection)
 {
-    assert(m_pAsyncConn);
-    return new SqlDelayThread(this, m_pAsyncConn);
+    assert(connection);
+    return new SqlDelayThread(this, connection);
 }
 
 void Database::InitDelayThread()
 {
-    assert(!m_delayThread);
+    assert(m_delayThreads.empty());
 
-    // New delay thread for delay execute
-    m_threadBody = CreateDelayThread();              // will deleted at m_delayThread delete
+    m_threadBody = CreateDelayThread(m_pAsyncConn);
     m_delayThread = new MaNGOS::Thread(m_threadBody);
+    m_threadBodies.push_back(m_threadBody);
+    m_delayThreads.push_back(m_delayThread);
+
+    for (SqlConnection* connection : m_pAsyncReadConnections)
+    {
+        SqlDelayThread* body = CreateDelayThread(connection);
+        m_threadBodies.push_back(body);
+        m_delayThreads.push_back(new MaNGOS::Thread(body));
+    }
 }
 
 void Database::HaltDelayThread()
 {
-    if (!m_threadBody || !m_delayThread) return;
+    if (m_delayThreads.empty())
+        return;
 
-    m_threadBody->Stop();                                   // Stop event
-    m_delayThread->wait();                                  // Wait for flush to DB
-    delete m_delayThread;                                   // This also deletes m_threadBody
+    for (SqlDelayThread* body : m_threadBodies)
+        body->Stop();
+    for (MaNGOS::Thread* thread : m_delayThreads)
+        thread->wait();
+    for (MaNGOS::Thread* thread : m_delayThreads)
+        delete thread;
+
+    m_threadBodies.clear();
+    m_delayThreads.clear();
     m_delayThread = nullptr;
     m_threadBody = nullptr;
+}
+
+SqlDelayThread* Database::GetQueryDelayThread()
+{
+    if (m_threadBodies.size() <= 1)
+        return m_threadBody;
+
+    size_t const readLaneCount = m_threadBodies.size() - 1;
+    size_t const index = 1 + (m_asyncQueryCounter.fetch_add(1, std::memory_order_relaxed) % readLaneCount);
+    return m_threadBodies[index];
 }
 
 void Database::ThreadStart()
@@ -196,10 +238,23 @@ void Database::ThreadEnd()
 {
 }
 
-void Database::ProcessResultQueue()
+void Database::ProcessResultQueue(uint32 maxMilliseconds)
 {
     if (m_pResultQueue)
-        m_pResultQueue->Update();
+        m_pResultQueue->Update(maxMilliseconds);
+}
+
+size_t Database::GetPendingResultCount() const
+{
+    return m_pResultQueue ? m_pResultQueue->PendingCount() : 0;
+}
+
+size_t Database::GetPendingAsyncOperationCount() const
+{
+    size_t pending = 0;
+    for (SqlDelayThread const* body : m_threadBodies)
+        pending += body->PendingCount();
+    return pending;
 }
 
 void Database::escape_string(std::string& str)
@@ -238,6 +293,12 @@ void Database::Ping()
     for (int i = 0; i < m_nQueryConnPoolSize; ++i)
     {
         SqlConnection::Lock guard(m_pQueryConnections[i]);
+        guard->Query(sql);
+    }
+
+    for (SqlConnection* connection : m_pAsyncReadConnections)
+    {
+        SqlConnection::Lock guard(connection);
         guard->Query(sql);
     }
 }

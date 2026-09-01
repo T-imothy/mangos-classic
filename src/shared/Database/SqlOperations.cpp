@@ -101,33 +101,36 @@ bool SqlQuery::Execute(SqlConnection* conn)
     return true;
 }
 
-void SqlResultQueue::Update()
+void SqlResultQueue::Update(uint32 maxMilliseconds)
 {
-    std::queue<std::unique_ptr<MaNGOS::IQueryCallback>> callbackQueue;
-    {
-        std::lock_guard<std::mutex> guard(m_mutex);
-        callbackQueue = std::move(m_queue);
-    }
-
     const bool performanceLogging = sConfig.GetBoolDefault("PerformanceLog.Enabled", true);
     const uint32 slowThreshold = static_cast<uint32>(std::max(1, sConfig.GetIntDefault("PerformanceLog.SlowDbCallbackMs", 50)));
-    const uint32 batchStart = performanceLogging ? WorldTimer::getMSTime() : 0;
+    const uint32 batchStart = WorldTimer::getMSTime();
     uint32 callbackCount = 0;
 
-    /// execute the callbacks waiting in the synchronization queue
-    while (!callbackQueue.empty())
+    for (;;)
     {
-        auto const callback = std::move(callbackQueue.front());
-        callbackQueue.pop();
+        std::unique_ptr<MaNGOS::IQueryCallback> callback;
+        {
+            std::lock_guard<std::mutex> guard(m_mutex);
+            if (m_queue.empty())
+                break;
+            callback = std::move(m_queue.front());
+            m_queue.pop();
+        }
+
         callback->Execute();
         ++callbackCount;
+
+        if (maxMilliseconds && WorldTimer::getMSTimeDiff(batchStart, WorldTimer::getMSTime()) >= maxMilliseconds)
+            break;
     }
 
     if (performanceLogging && callbackCount)
     {
         const uint32 elapsed = WorldTimer::getMSTimeDiff(batchStart, WorldTimer::getMSTime());
         if (elapsed >= slowThreshold)
-            sLog.outPerformance("SLOW_DB_CALLBACK batch=%u elapsed=%u ms", callbackCount, elapsed);
+            sLog.outPerformance("SLOW_DB_CALLBACK batch=%u elapsed=%u ms remaining=%u", callbackCount, elapsed, static_cast<uint32>(PendingCount()));
     }
 }
 
@@ -135,6 +138,12 @@ void SqlResultQueue::Add(MaNGOS::IQueryCallback* callback)
 {
     std::lock_guard<std::mutex> guard(m_mutex);
     m_queue.push(std::unique_ptr<MaNGOS::IQueryCallback>(callback));
+}
+
+size_t SqlResultQueue::PendingCount() const
+{
+    std::lock_guard<std::mutex> guard(m_mutex);
+    return m_queue.size();
 }
 
 bool SqlQueryHolder::Execute(MaNGOS::IQueryCallback* callback, SqlDelayThread* thread, SqlResultQueue* queue)

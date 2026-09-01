@@ -158,7 +158,9 @@ void Map::LoadMapAndVMap(int gx, int gy)
 Map::Map(uint32 id, time_t expiry, uint32 InstanceId)
     : i_mapEntry(sMapStore.LookupEntry(id)),
       i_id(id), i_InstanceId(InstanceId), m_unloadTimer(0),
-      m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_BaseVisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_persistentState(nullptr),
+      m_VisibleDistance(DEFAULT_VISIBILITY_DISTANCE), m_BaseVisibleDistance(DEFAULT_VISIBILITY_DISTANCE),
+      m_GlobalVisibilityScale(1.0f), m_LocalVisibilityScale(1.0f), m_LocalSlowStreak(0), m_LocalRecoveryStreak(0),
+      m_persistentState(nullptr),
       m_activeNonPlayersIter(m_activeNonPlayers.end()), m_onEventNotifiedIter(m_onEventNotifiedObjects.end()),
       i_gridExpiry(expiry), m_TerrainData(sTerrainMgr.LoadTerrain(id)),
       i_data(nullptr), i_script_id(0), m_transportsIterator(m_transports.begin()), m_spawnManager(*this),
@@ -239,8 +241,51 @@ void Map::InitVisibilityDistance()
 
 void Map::SetVisibilityDistanceScale(float scale)
 {
-    scale = std::max(0.25f, std::min(1.0f, scale));
-    m_VisibleDistance = m_BaseVisibleDistance * scale;
+    m_GlobalVisibilityScale = std::max(0.25f, std::min(1.0f, scale));
+    m_VisibleDistance = m_BaseVisibleDistance * std::min(m_GlobalVisibilityScale, m_LocalVisibilityScale);
+}
+
+void Map::UpdateAdaptiveLoad(uint32 elapsedMilliseconds)
+{
+    if (!sWorld.getConfig(CONFIG_BOOL_ADAPTIVE_LOAD_PER_MAP_ENABLED))
+        return;
+
+    uint32 const slowThreshold = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_SLOW_MS);
+    uint32 const recoveryThreshold = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_RECOVER_MS);
+    float const minimumScale = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_MIN_VISIBILITY_PERCENT) / 100.0f;
+    float const step = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_STEP_PERCENT) / 100.0f;
+    float oldScale = m_LocalVisibilityScale;
+
+    if (elapsedMilliseconds >= slowThreshold)
+    {
+        ++m_LocalSlowStreak;
+        m_LocalRecoveryStreak = 0;
+        if (m_LocalSlowStreak >= 3)
+        {
+            m_LocalVisibilityScale = std::max(minimumScale, m_LocalVisibilityScale - step);
+            m_LocalSlowStreak = 0;
+        }
+    }
+    else if (elapsedMilliseconds <= recoveryThreshold)
+    {
+        ++m_LocalRecoveryStreak;
+        m_LocalSlowStreak = 0;
+        if (m_LocalRecoveryStreak >= 20)
+        {
+            m_LocalVisibilityScale = std::min(1.0f, m_LocalVisibilityScale + step);
+            m_LocalRecoveryStreak = 0;
+        }
+    }
+    else
+    {
+        m_LocalSlowStreak = 0;
+        m_LocalRecoveryStreak = 0;
+    }
+
+    m_VisibleDistance = m_BaseVisibleDistance * std::min(m_GlobalVisibilityScale, m_LocalVisibilityScale);
+    if (oldScale != m_LocalVisibilityScale)
+        sLog.outPerformance("MAP_ADAPTIVE_LOAD map=%u instance=%u elapsed=%u ms local_visibility=%u%% effective_distance=%.1f",
+            GetId(), GetInstanceId(), elapsedMilliseconds, static_cast<uint32>(m_LocalVisibilityScale * 100.0f), m_VisibleDistance);
 }
 
 // Template specialization of utility methods
@@ -699,6 +744,27 @@ void Map::VisitNearbyCellsOf(WorldObject* obj, TypeContainerVisitor<MaNGOS::Obje
     }
 }
 
+void Map::CollectNearbyCellsOf(WorldObject* obj, std::vector<Cell>& cells)
+{
+    CellArea area = Cell::CalculateCellArea(obj->GetPositionX(), obj->GetPositionY(),
+        obj->IsInWorld() ? obj->GetVisibilityData().GetVisibilityDistance() : GetVisibilityDistance());
+
+    for (uint32 x = area.low_bound.x_coord; x <= area.high_bound.x_coord; ++x)
+    {
+        for (uint32 y = area.low_bound.y_coord; y <= area.high_bound.y_coord; ++y)
+        {
+            uint32 const cellId = (y * TOTAL_NUMBER_OF_CELLS_PER_MAP) + x;
+            if (isCellMarked(cellId))
+                continue;
+
+            markCell(cellId);
+            Cell cell(CellPair(x, y));
+            cell.SetNoCreate();
+            cells.push_back(cell);
+        }
+    }
+}
+
 void Map::Update(const uint32& t_diff)
 {
 
@@ -741,6 +807,8 @@ void Map::Update(const uint32& t_diff)
     MaNGOS::ObjectUpdater obj_updater(objToUpdate, t_diff);
     TypeContainerVisitor<MaNGOS::ObjectUpdater, GridTypeMapContainer  > grid_object_update(obj_updater);    // For creature
     TypeContainerVisitor<MaNGOS::ObjectUpdater, WorldTypeMapContainer > world_object_update(obj_updater);   // For pets
+    bool const parallelCellDiscovery = IsContinent() && sMapMgr.GetCellUpdater().activated();
+    std::vector<Cell> cellsToVisit;
 
     for (m_transportsIterator = m_transports.begin(); m_transportsIterator != m_transports.end();)
     {
@@ -842,6 +910,7 @@ void Map::Update(const uint32& t_diff)
 
     bool shouldUpdateBots = urand(0, (uint32)(botUpdateChance * 100)) < 100;
     const uint32 backgroundBotCadence = std::max<uint32>(1, static_cast<uint32>(std::ceil(botUpdateChance)));
+    std::vector<std::pair<Player*, uint32>> parallelIdleBots;
 #endif
 
     /// update players at tick
@@ -902,12 +971,51 @@ void Map::Update(const uint32& t_diff)
             }
 #endif
 
-            plr->Update(t_diff);
-
 #ifdef ENABLE_PLAYERBOTS
             const bool minimalBotUpdate = !sPlayerbotAIConfig.disableBotOptimizations && !shouldUpdateBot;
+            uint32 coreUpdateDiff = t_diff;
+            bool runCoreUpdate = true;
+            if (isPlayerbot)
+            {
+                uint32 const idleCoreCadence = sWorld.getConfig(CONFIG_UINT32_PLAYERBOT_IDLE_CORE_UPDATE_SKIP);
+                uint32 const guid = plr->GetGUIDLow();
+                if (minimalBotUpdate && idleCoreCadence > 1)
+                {
+                    m_idleBotCoreDiff[guid] += t_diff;
+                    uint32& ticks = m_idleBotCoreTicks[guid];
+                    ++ticks;
+                    if (ticks < idleCoreCadence)
+                        runCoreUpdate = false;
+                    else
+                    {
+                        coreUpdateDiff = m_idleBotCoreDiff[guid];
+                        m_idleBotCoreDiff.erase(guid);
+                        m_idleBotCoreTicks.erase(guid);
+                    }
+                }
+                else
+                {
+                    auto accumulated = m_idleBotCoreDiff.find(guid);
+                    if (accumulated != m_idleBotCoreDiff.end())
+                    {
+                        coreUpdateDiff += accumulated->second;
+                        m_idleBotCoreDiff.erase(accumulated);
+                        m_idleBotCoreTicks.erase(guid);
+                    }
+                }
+            }
+
+            if (runCoreUpdate)
+                plr->Update(coreUpdateDiff);
+
             const uint32 performanceBotStart = performanceLogging && isPlayerbot ? WorldTimer::getMSTime() : 0;
-            if (sPlayerbotAIConfig.disableBotOptimizations)
+            if (minimalBotUpdate && sMapMgr.GetIdleBotUpdater().activated())
+            {
+                parallelIdleBots.emplace_back(plr, t_diff);
+                ++performanceMinimalBotUpdates;
+                continue;
+            }
+            else if (sPlayerbotAIConfig.disableBotOptimizations)
             {
                 plr->UpdateAI(t_diff, false);
             }
@@ -933,9 +1041,24 @@ void Map::Update(const uint32& t_diff)
                         plr->GetPlayerbotAI()->HasRealPlayerMaster() ? 1 : 0);
                 }
             }
+#else
+            plr->Update(t_diff);
 #endif
         }
     }
+
+#ifdef ENABLE_PLAYERBOTS
+    if (!parallelIdleBots.empty())
+    {
+        uint32 const parallelBotStart = performanceLogging ? WorldTimer::getMSTime() : 0;
+        MapUpdater& updater = sMapMgr.GetIdleBotUpdater();
+        for (auto const& update : parallelIdleBots)
+            updater.schedule_update(new IdleBotAIUpdateWorker(*update.first, update.second, updater));
+        updater.wait();
+        if (performanceLogging)
+            performanceBotElapsed += WorldTimer::getMSTimeDiff(parallelBotStart, WorldTimer::getMSTime());
+    }
+#endif
 
 #ifdef ENABLE_PLAYERBOTS
     // Log the active zones and characters
@@ -976,11 +1099,19 @@ void Map::Update(const uint32& t_diff)
         }
 #endif
 
-        VisitNearbyCellsOf(player, grid_object_update, world_object_update);
+        if (parallelCellDiscovery)
+            CollectNearbyCellsOf(player, cellsToVisit);
+        else
+            VisitNearbyCellsOf(player, grid_object_update, world_object_update);
 
         // If player is using far sight, visit that object too
         if (WorldObject* viewPoint = GetWorldObject(player->GetFarSightGuid()))
-            VisitNearbyCellsOf(viewPoint, grid_object_update, world_object_update);
+        {
+            if (parallelCellDiscovery)
+                CollectNearbyCellsOf(viewPoint, cellsToVisit);
+            else
+                VisitNearbyCellsOf(viewPoint, grid_object_update, world_object_update);
+        }
     }
 
 #ifdef ENABLE_PLAYERBOTS
@@ -1041,12 +1172,37 @@ void Map::Update(const uint32& t_diff)
                         CellPair pair(x, y);
                         Cell cell(pair);
                         cell.SetNoCreate();
-                        Visit(cell, grid_object_update);
-                        Visit(cell, world_object_update);
+                        if (parallelCellDiscovery)
+                            cellsToVisit.push_back(cell);
+                        else
+                        {
+                            Visit(cell, grid_object_update);
+                            Visit(cell, world_object_update);
+                        }
                     }
                 }
             }
         }
+    }
+
+    if (parallelCellDiscovery && !cellsToVisit.empty())
+    {
+        MapUpdater& updater = sMapMgr.GetCellUpdater();
+        size_t const chunkSize = sWorld.getConfig(CONFIG_UINT32_MAP_CELL_CHUNK_SIZE);
+        std::vector<std::unique_ptr<WorldObjectUnSet>> workerObjects;
+        workerObjects.reserve((cellsToVisit.size() + chunkSize - 1) / chunkSize);
+
+        for (size_t offset = 0; offset < cellsToVisit.size(); offset += chunkSize)
+        {
+            size_t const end = std::min(cellsToVisit.size(), offset + chunkSize);
+            std::vector<Cell> chunk(cellsToVisit.begin() + offset, cellsToVisit.begin() + end);
+            workerObjects.emplace_back(std::make_unique<WorldObjectUnSet>());
+            updater.schedule_update(new GridCrawler(*this, std::move(chunk), *workerObjects.back(), t_diff, updater));
+        }
+
+        updater.wait();
+        for (auto const& objects : workerObjects)
+            objToUpdate.insert(objects->begin(), objects->end());
     }
 
     // Gameplay and AI updates intentionally remain ordered. CMaNGOS objects can
@@ -1095,9 +1251,11 @@ void Map::Update(const uint32& t_diff)
         }
     }
 
+    const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceMapStart, WorldTimer::getMSTime());
+    UpdateAdaptiveLoad(performanceTotalElapsed);
+
     if (performanceLogging)
     {
-        const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceMapStart, WorldTimer::getMSTime());
         const uint32 slowMapThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS);
         const uint32 slowBotThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_BOT_MS);
         if (performanceTotalElapsed >= slowMapThreshold || performanceBotElapsed >= slowBotThreshold)
@@ -1112,6 +1270,11 @@ void Map::Update(const uint32& t_diff)
 
 void Map::Remove(Player* player, bool remove)
 {
+#ifdef ENABLE_PLAYERBOTS
+    m_idleBotCoreDiff.erase(player->GetGUIDLow());
+    m_idleBotCoreTicks.erase(player->GetGUIDLow());
+#endif
+
     if (i_data)
         i_data->OnPlayerLeave(player);
 

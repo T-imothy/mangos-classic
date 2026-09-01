@@ -106,7 +106,7 @@ class Database
     public:
         virtual ~Database();
 
-        virtual bool Initialize(const char* infoString, int nConns = 1);
+        virtual bool Initialize(const char* infoString, int nConns = 1, int nWorkers = 1);
         // start worker thread for async DB request execution
         virtual void InitDelayThread();
         // stop worker thread
@@ -203,7 +203,9 @@ class Database
         virtual void ThreadEnd();
 
         // set database-wide result queue. also we should use object-bases and not thread-based result queues
-        void ProcessResultQueue();
+        void ProcessResultQueue(uint32 maxMilliseconds = 0);
+        size_t GetPendingResultCount() const;
+        size_t GetPendingAsyncOperationCount() const;
 
         bool CheckRequiredField(char const* table_name, char const* required_name);
         uint32 GetPingIntervall() const { return m_pingIntervallms; }
@@ -219,7 +221,7 @@ class Database
     protected:
         Database() :
             m_nQueryConnPoolSize(1), m_pAsyncConn(nullptr), m_pResultQueue(nullptr),
-            m_threadBody(nullptr), m_delayThread(nullptr), m_allowAsyncTransactions(false),
+            m_threadBody(nullptr), m_delayThread(nullptr), m_asyncQueryCounter(0), m_allowAsyncTransactions(false),
             m_iStmtIndex(-1), m_logSQL(false), m_pingIntervallms(0)
         {
             m_nQueryCounter = -1;
@@ -230,7 +232,8 @@ class Database
         // factory method to create SqlConnection objects
         virtual SqlConnection* CreateConnection() = 0;
         // factory method to create SqlDelayThread objects
-        virtual SqlDelayThread* CreateDelayThread();
+        virtual SqlDelayThread* CreateDelayThread(SqlConnection* connection);
+        SqlDelayThread* GetQueryDelayThread();
 
         // per-thread based storage for SqlTransaction object initialization - no locking is required
         boost::thread_specific_ptr<SqlTransaction> m_currentTransaction;
@@ -258,10 +261,14 @@ class Database
 
         // only one single DB connection for transactions
         SqlConnection* m_pAsyncConn;
+        SqlConnectionContainer m_pAsyncReadConnections;
 
         SqlResultQueue*     m_pResultQueue;                 ///< Transaction queues from diff. threads
         SqlDelayThread*     m_threadBody;                   ///< Pointer to delay sql executer (owned by m_delayThread)
         MaNGOS::Thread*     m_delayThread;                  ///< Pointer to executer thread
+        std::vector<SqlDelayThread*> m_threadBodies;        ///< One ordered write lane plus optional async read lanes
+        std::vector<MaNGOS::Thread*> m_delayThreads;
+        std::atomic_ulong m_asyncQueryCounter;
 
         std::atomic<bool> m_allowAsyncTransactions;         ///< flag which specifies if async transactions are enabled
 
