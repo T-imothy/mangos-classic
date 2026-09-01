@@ -87,6 +87,30 @@ if(MSVC)
   set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 endif()
 
+# Modules setup
+if(BUILD_MODULES)
+  # Keep the module framework and selected modules in-tree. This makes builds
+  # reproducible and prevents a moving upstream branch from changing the server.
+  set(MODULE_CONFIG_FILE ${CMAKE_SOURCE_DIR}/src/modules/modules/modules.conf)
+  if(NOT EXISTS ${MODULE_CONFIG_FILE})
+    message(FATAL_ERROR "BUILD_MODULES requires the vendored module framework")
+  endif()
+
+  file(READ ${MODULE_CONFIG_FILE} MODULE_CONF)
+  string(REGEX REPLACE "\n" ";" MODULE_CONF_LINES "${MODULE_CONF}")
+  set(MODULE_NAMES)
+  set(MODULE_URLS)
+  foreach(MODULE_CONF_LINE ${MODULE_CONF_LINES})
+    string(REGEX MATCH "([^=]+)=(.*)" _ ${MODULE_CONF_LINE})
+    set(KEY ${CMAKE_MATCH_1})
+    set(VALUE ${CMAKE_MATCH_2})
+    if(NOT KEY STREQUAL "" OR NOT VALUE STREQUAL "")
+      list(APPEND MODULE_NAMES ${KEY})
+      list(APPEND MODULE_URLS ${VALUE})
+    endif()
+  endforeach()
+endif()
+
 # set default buildoptions and print them
 include(cmake/options.cmake)
 
@@ -340,6 +364,11 @@ if(BUILD_PLAYERBOTS)
     set(BUILD_PLAYERBOTS OFF)
     message(STATUS "BUILD_PLAYERBOTS forced to OFF due to BUILD_GAME_SERVER is not set")
   endif()
+endif()
+
+if(BUILD_MODULES AND NOT BUILD_GAME_SERVER)
+  set(BUILD_MODULES OFF)
+  message(STATUS "BUILD_MODULES forced to OFF due to BUILD_GAME_SERVER is not set")
 endif()
 
 if(PCH)
