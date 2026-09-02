@@ -20212,7 +20212,10 @@ void Player::AddCooldown(SpellEntry const& spellEntry, ItemPrototype const* item
         auto& cdData = cdDataItr->second;
         if (!cdData->IsPermanent() && (!cdData->IsSpellCDExpired(GetMap()->GetCurrentClockTime()) || !cdData->IsCatCDExpired(GetMap()->GetCurrentClockTime())))
         {
-            sLog.outError("Player::AddCooldown> Spell(%u) try to add and already existing cooldown %u?", spellEntry.Id, forcedDuration);
+            // Redundant cooldown attempts are harmless and are common when
+            // thousands of bots evaluate the same state transition. Preserve
+            // the diagnostic for debug builds without flooding Server.log.
+            sLog.outDebug("Player::AddCooldown> Spell(%u) already has cooldown %u", spellEntry.Id, forcedDuration);
             return;
         }
         wasPermanent = cdData->IsPermanent();
