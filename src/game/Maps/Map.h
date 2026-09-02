@@ -440,6 +440,9 @@ class Map : public GridRefManager<NGridType>
         float m_LocalVisibilityScale;
         uint32 m_LocalSlowStreak;
         uint32 m_LocalRecoveryStreak;
+        uint32 m_LastSlowMapDetailMs = 0;
+        uint32 m_SuppressedSlowMapDetails = 0;
+        uint32 m_PeakSuppressedSlowMapMs = 0;
         MapPersistentState* m_persistentState;
 
         MapRefManager m_mapRefManager;

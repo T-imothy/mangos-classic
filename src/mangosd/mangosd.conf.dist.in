@@ -269,6 +269,12 @@ Spawns.ZoneArea = 0
 #        Interval for aggregate world update summaries.
 #        Default: 60000 (one minute)
 #
+#    PerformanceLog.DetailIntervalMs
+#        Minimum interval between repetitive SLOW_WORLD and per-map SLOW_MAP
+#        details. Suppressed samples and their peak are included in the next
+#        record so diagnostics do not become the workload.
+#        Default: 1000 milliseconds
+#
 #    AdaptiveLoad.Enabled
 #        Reduce idle-map work and temporarily reduce visibility during sustained slow world ticks.
 #        Default: 1 (enable)
@@ -311,10 +317,13 @@ Spawns.ZoneArea = 0
 #        Default: 2
 #
 #    MapUpdate.IdleBotThreads
+#    MapUpdate.IdleBotChunkSize
 #        Experimental worker lanes for minimal AI updates of bots that are away
 #        from real players, combat, battlegrounds, and real-player groups.
 #        Zero keeps idle bot AI on the owning map thread.
-#        Default: 2
+#        Due bots are dispatched in chunks to avoid one allocation and queue
+#        operation per bot per tick.
+#        Defaults: 2 threads and 64 bots
 #
 #    MapUpdate.CellThreads
 #    MapUpdate.CellChunkSize
@@ -434,6 +443,7 @@ MapUpdate.Threads = 3
 MapUpdate.ObjectThreads = 4
 MapUpdate.VisibilityChunkSize = 64
 MapUpdate.IdleBotThreads = 2
+MapUpdate.IdleBotChunkSize = 64
 MapUpdate.CellThreads = 2
 MapUpdate.CellChunkSize = 64
 Playerbot.StaggerBackgroundUpdates = 1
@@ -447,6 +457,7 @@ PerformanceLog.SlowPacketMs = 25
 PerformanceLog.SlowAsyncDbMs = 100
 PerformanceLog.SlowDbCallbackMs = 50
 PerformanceLog.SummaryIntervalMs = 60000
+PerformanceLog.DetailIntervalMs = 1000
 AdaptiveLoad.Enabled = 1
 AdaptiveLoad.EmptyMapUpdateMs = 500
 AdaptiveLoad.SlowWorldMs = 250
