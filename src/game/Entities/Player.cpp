@@ -1653,11 +1653,11 @@ void Player::RemovePlayerbotMgr()
     m_playerbotMgr = nullptr;
 }
 
-void Player::UpdateAI(const uint32 diff, bool minimal)
+void Player::UpdateAI(const uint32 diff, bool minimal, bool delayAlreadyAdvanced)
 {
     if (m_playerbotAI)
     {
-        m_playerbotAI->UpdateAI(diff, minimal);
+        m_playerbotAI->UpdateAI(diff, minimal, delayAlreadyAdvanced);
     }
 
     if (m_playerbotMgr)

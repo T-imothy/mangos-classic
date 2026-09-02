@@ -177,6 +177,7 @@ class MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockab
         void DoForAllMaps(const std::function<void(Map*)>& worker);
         void DoForAllMapsWithMapId(uint32 mapId, const std::function<void(Map*)> worker);
         MapUpdater& GetObjectUpdater() { return m_objectUpdater; }
+        MapUpdater& GetMapUpdater() { return m_updater; }
         MapUpdater& GetIdleBotUpdater() { return m_idleBotUpdater; }
         MapUpdater& GetCellUpdater() { return m_cellUpdater; }
 
