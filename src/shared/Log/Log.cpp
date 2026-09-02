@@ -231,7 +231,9 @@ void Log::Initialize()
     m_logsTimestamp = "_" + GetTimestampStr();
 
     /// Open specific log files
-    logfile = openLogFile("LogFile", "LogTimestamp", "w");
+    // Preserve the primary server/realm log across supervised restarts so a
+    // multi-day diagnostic run retains the events leading up to each restart.
+    logfile = openLogFile("LogFile", "LogTimestamp", "a");
 
     m_gmlog_per_account = sConfig.GetBoolDefault("GmLogPerAccount", false);
     if (!m_gmlog_per_account)
