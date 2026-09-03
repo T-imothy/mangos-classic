@@ -153,7 +153,7 @@ class ObjectUpdateBuildWorker : public Worker
 class IdleBotAIUpdateWorker : public Worker
 {
     public:
-        IdleBotAIUpdateWorker(std::pair<Player*, uint32> const* updates, size_t count, uint32 jitterMs,
+        IdleBotAIUpdateWorker(IdleBotAIUpdateRequest const* updates, size_t count, uint32 jitterMs,
             MapUpdateTaskGroup& group, MapUpdater& updater) :
             Worker(updater), m_updates(updates), m_count(count), m_jitterMs(jitterMs), m_group(group)
         {}
@@ -163,13 +163,23 @@ class IdleBotAIUpdateWorker : public Worker
             for (size_t i = 0; i < m_count; ++i)
             {
                 auto const& update = m_updates[i];
-                Player* player = update.first;
-                if (player && player->IsInWorld())
+                Player* player = update.player;
+                PlayerbotAI* ai = player ? player->GetPlayerbotAI() : nullptr;
+                if (!ai || !ai->IsTransitionContextCurrent(update.transitionGeneration,
+                    update.mapId, update.instanceId))
                 {
-                    player->UpdateAI(update.second, true, true);
-                    if (PlayerbotAI* ai = player->GetPlayerbotAI())
-                        ai->ScheduleNextMinimalUpdate(player->GetGUIDLow(), m_jitterMs);
+                    PlayerbotAI::RecordDiscardedTransitionWork();
+                    continue;
                 }
+
+                player->UpdateAI(update.elapsed, true, true);
+                if (ai->IsTransitionContextCurrent(update.transitionGeneration,
+                    update.mapId, update.instanceId))
+                {
+                    ai->ScheduleNextMinimalUpdate(player->GetGUIDLow(), m_jitterMs);
+                }
+                else
+                    PlayerbotAI::RecordDiscardedTransitionWork();
             }
 
             m_group.Done();
@@ -177,7 +187,7 @@ class IdleBotAIUpdateWorker : public Worker
         }
 
     private:
-        std::pair<Player*, uint32> const* m_updates;
+        IdleBotAIUpdateRequest const* m_updates;
         size_t m_count;
         uint32 m_jitterMs;
         MapUpdateTaskGroup& m_group;

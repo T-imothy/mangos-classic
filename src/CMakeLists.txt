@@ -40,7 +40,7 @@ if(BUILD_PLAYERBOTS)
     message(STATUS "Playerbots module already populated: ${playerbots_POPULATED}")
   endif()
 
-  add_subdirectory(${playerbots_SOURCE_DIR})
+  add_subdirectory(${playerbots_SOURCE_DIR} ${CMAKE_BINARY_DIR}/playerbots)
 
 else()
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots)
@@ -57,4 +57,23 @@ endif()
 
 if(BUILD_LOGIN_SERVER)
   add_subdirectory(realmd)
+endif()
+
+# Install modules
+if(BUILD_MODULES)
+  list(LENGTH MODULE_NAMES MODULE_COUNT)
+  math(EXPR MODULE_COUNT "${MODULE_COUNT}-1")
+  foreach(INDEX RANGE ${MODULE_COUNT})
+    list(GET MODULE_NAMES ${INDEX} MODULE_NAME)
+    list(GET MODULE_URLS ${INDEX} MODULE_URL)
+
+    string(TOLOWER ${MODULE_NAME} LOWER_MODULE_NAME)
+    if(BUILD_MODULE_${MODULE_NAME} OR BUILD_${MODULE_NAME})
+      set(MODULE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/modules/${LOWER_MODULE_NAME})
+      if(NOT EXISTS ${MODULE_SOURCE_DIR}/CMakeLists.txt)
+        message(FATAL_ERROR "Requested module ${LOWER_MODULE_NAME} is not vendored in src/modules")
+      endif()
+      add_subdirectory(${MODULE_SOURCE_DIR})
+    endif()
+  endforeach()
 endif()

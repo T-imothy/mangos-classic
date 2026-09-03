@@ -39,6 +39,10 @@
 #include <algorithm>
 #include <limits>
 
+#ifdef ENABLE_MODULES
+#include "ModuleMgr.h"
+#endif
+
 INSTANTIATE_SINGLETON_1(AuctionHouseMgr);
 
 AuctionHouseMgr::AuctionHouseMgr()
@@ -805,6 +809,10 @@ bool AuctionEntry::UpdateBid(uint32 newbid, Player* newbidder /*=nullptr*/)
 
     bidder = newbidder ? newbidder->GetGUIDLow() : 0;
     bid = newbid;
+
+#ifdef ENABLE_MODULES
+    sModuleMgr.OnUpdateBid(this, newbidder, newbid);
+#endif
 
     if ((newbid < buyout) || (buyout == 0))                 // bid
     {

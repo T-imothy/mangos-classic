@@ -81,10 +81,15 @@
 #ifdef ENABLE_PLAYERBOTS
 #include "ahbot/AhBot.h"
 #include "playerbot/PlayerbotAIConfig.h"
+#include "playerbot/PlayerbotAI.h"
 #include "playerbot/RandomPlayerbotMgr.h"
 #include "playerbot/RandomItemMgr.h"
 #include "playerbot/TravelMgr.h"
 #include "playerbot/strategy/Engine.h"
+#endif
+
+#ifdef ENABLE_MODULES
+#include "ModuleMgr.h"
 #endif
 
 #include <algorithm>
@@ -949,6 +954,10 @@ void World::SetInitialWorldSettings()
         exit(1);
     }
 
+#ifdef ENABLE_MODULES
+    sModuleMgr.OnWorldPreInitialized();
+#endif
+
     ///- Loading strings. Getting no records means core load has to be canceled because no error message can be output.
     sLog.outString("Loading MaNGOS strings...");
     if (!sObjectMgr.LoadMangosStrings())
@@ -1528,6 +1537,10 @@ void World::SetInitialWorldSettings()
 #endif
 #endif
 
+#ifdef ENABLE_MODULES
+    sModuleMgr.OnWorldInitialized();
+#endif
+
     sLog.outString("---------------------------------------");
     sLog.outString("      CMANGOS: World initialized       ");
     sLog.outString("---------------------------------------");
@@ -1963,6 +1976,8 @@ void World::Update(uint32 diff)
             uint64 aiValuesReleased = 0;
             uint64 aiImpossibleRetriesSuppressed = 0;
             uint64 aiFailedRetriesSuppressed = 0;
+            uint64 transitionRequests = 0;
+            uint64 transitionWorkDiscarded = 0;
 #ifdef ENABLE_PLAYERBOTS
             RandomItemCacheStats const itemCaches = sRandomItemMgr.GetCacheStats();
             ai::TravelMgr::CacheStats const travelCaches = sTravelMgr.GetCacheStats();
@@ -1981,7 +1996,16 @@ void World::Update(uint32 diff)
             aiValuesReleased = AiObjectContext::GetExpiredValuesReleased();
             aiImpossibleRetriesSuppressed = ai::Engine::GetSuppressedImpossibleActions();
             aiFailedRetriesSuppressed = ai::Engine::GetSuppressedFailedActions();
+            transitionRequests = PlayerbotAI::ConsumeTransitionRequests();
+            transitionWorkDiscarded = PlayerbotAI::ConsumeDiscardedTransitionWork();
 #endif
+
+            if (transitionRequests || transitionWorkDiscarded)
+            {
+                sLog.outPerformance("BOT_TRANSITION_SUMMARY requests=%llu stale_work_discarded=%llu",
+                    static_cast<unsigned long long>(transitionRequests),
+                    static_cast<unsigned long long>(transitionWorkDiscarded));
+            }
 
             sLog.outPerformance("MEMORY_SUMMARY working_set_mb=%llu private_mb=%llu maps=%u grids_allocated=%llu grids_active=%llu map_players=%llu active_nonplayers=%llu ai_objects=%llu ai_strategies=%llu ai_actions=%llu ai_triggers=%llu ai_values=%llu ai_values_released=%llu ai_impossible_retries_suppressed=%llu ai_failed_retries_suppressed=%llu idle_scheduler_capacity=%llu idle_core_timer_entries=%llu queue_map_peak=%llu queue_object_peak=%llu queue_idle_peak=%llu queue_cell_peak=%llu queue_map_pending=%llu queue_object_pending=%llu queue_idle_pending=%llu queue_cell_pending=%llu queue_map_queued=%llu queue_object_queued=%llu queue_idle_queued=%llu queue_cell_queued=%llu nav_maps=%u nav_tiles=%u nav_models=%u nav_map_thread_queries=%llu nav_model_thread_queries=%llu nav_query_allocations=%llu nav_query_frees=%llu nav_query_highwater=%llu item_random=%llu item_equip=%llu item_info=%llu item_consumable=%llu item_trade=%llu item_enchant=%llu travel_destinations=%llu travel_points=%llu travel_fish=%llu travel_area_levels=%llu travel_bad_mmaps=%llu travel_transfers=%llu",
                 static_cast<unsigned long long>(workingSetMb), static_cast<unsigned long long>(privateMb), static_cast<uint32>(sMapMgr.Maps().size()),
@@ -2063,6 +2087,10 @@ void World::Update(uint32 diff)
     meas.add_field("map", std::to_string(map));
     meas.add_field("singletons", std::to_string(singletons));
     meas.add_field("cleanup", std::to_string(cleanup));
+#endif
+
+#ifdef ENABLE_MODULES
+    sModuleMgr.OnWorldUpdated(diff);
 #endif
 }
 

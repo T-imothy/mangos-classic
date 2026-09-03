@@ -64,6 +64,17 @@ class GenericTransport;
 namespace MaNGOS { struct ObjectUpdater; }
 class Transport;
 
+#ifdef ENABLE_PLAYERBOTS
+struct IdleBotAIUpdateRequest
+{
+    Player* player;
+    uint32 elapsed;
+    uint32 mapId;
+    uint32 instanceId;
+    uint32 transitionGeneration;
+};
+#endif
+
 // GCC have alternative #pragma pack(N) syntax and old gcc version not support pack(push,N), also any gcc version not support it at some platform
 #if defined( __GNUC__ )
 #pragma pack(1)
@@ -543,8 +554,8 @@ class Map : public GridRefManager<NGridType>
         bool hasRealPlayers;
         std::unordered_map<uint32, uint32> m_idleBotCoreDiff;
         std::unordered_map<uint32, uint32> m_idleBotCoreTicks;
-        std::vector<std::pair<Player*, uint32>> m_idleBotDueUpdates;
-        std::vector<std::pair<Player*, uint32>> m_idleBotDispatchUpdates;
+        std::vector<IdleBotAIUpdateRequest> m_idleBotDueUpdates;
+        std::vector<IdleBotAIUpdateRequest> m_idleBotDispatchUpdates;
         size_t m_idleBotRoundRobinCursor;
 #endif
 };
