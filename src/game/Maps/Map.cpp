@@ -1106,14 +1106,15 @@ void Map::Update(const uint32& t_diff)
         uint32 const parallelBotStart = performanceLogging ? WorldTimer::getMSTime() : 0;
         MapUpdater& updater = sMapMgr.GetIdleBotUpdater();
         MapUpdateTaskGroup taskGroup;
-        size_t const chunkSize = sWorld.getConfig(CONFIG_UINT32_MAP_IDLE_BOT_CHUNK_SIZE);
         uint32 const jitterMs = sWorld.getConfig(CONFIG_UINT32_MAP_IDLE_BOT_JITTER_MS);
-        for (size_t offset = 0; offset < m_idleBotDispatchUpdates.size(); offset += chunkSize)
-        {
-            size_t const count = std::min(chunkSize, m_idleBotDispatchUpdates.size() - offset);
-            taskGroup.Add();
-            updater.schedule_update(new IdleBotAIUpdateWorker(m_idleBotDispatchUpdates.data() + offset, count, jitterMs, taskGroup, updater));
-        }
+
+        // Playerbot AI can read and mutate shared Unit combat/threat state. Splitting
+        // one map's bots across workers breaks the map ownership boundary and can
+        // corrupt ThreatContainer lists. Keep each map batch single-owner; the idle
+        // updater still runs batches from different maps in parallel.
+        taskGroup.Add();
+        updater.schedule_update(new IdleBotAIUpdateWorker(m_idleBotDispatchUpdates.data(),
+            m_idleBotDispatchUpdates.size(), jitterMs, taskGroup, updater));
         taskGroup.Wait();
         if (performanceLogging)
             performanceBotElapsed += WorldTimer::getMSTimeDiff(parallelBotStart, WorldTimer::getMSTime());
