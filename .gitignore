@@ -96,4 +96,15 @@ cmake_install.cmake
 #
 # Module files
 #
-src/modules/
+src/modules/*
+!src/modules/PINNED_VERSIONS.md
+!src/modules/modules/
+!src/modules/modules/**
+!src/modules/achievements/
+!src/modules/achievements/**
+!src/modules/dualspec/
+!src/modules/dualspec/**
+!src/modules/transmog/
+!src/modules/transmog/**
+!src/modules/trainingdummies/
+!src/modules/trainingdummies/**
