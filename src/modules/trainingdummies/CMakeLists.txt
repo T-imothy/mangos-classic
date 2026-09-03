@@ -27,7 +27,7 @@ set(LIBRARY_SRCS ${trainingdummies_source})
 
 # Define ENABLE_PLAYERBOTS if need
 if (BUILD_PLAYERBOTS)
-  include_directories(${CMAKE_SOURCE_DIR}/src/modules/PlayerBots)
+  include_directories(${playerbots_SOURCE_DIR})
   add_definitions(-DENABLE_PLAYERBOTS)
 endif()
 
