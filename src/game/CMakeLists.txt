@@ -126,7 +126,7 @@ target_include_directories(${LIBRARY_NAME}
 
 if(BUILD_PLAYERBOTS)
   target_link_libraries(${LIBRARY_NAME} PUBLIC playerbots)
-  target_include_directories(${LIBRARY_NAME} PUBLIC ${CMAKE_SOURCE_DIR}/src/modules/PlayerBots)
+  target_include_directories(${LIBRARY_NAME} PUBLIC ${playerbots_SOURCE_DIR})
   add_dependencies(${LIBRARY_NAME} playerbots)
 endif()
 
