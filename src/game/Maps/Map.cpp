@@ -1048,7 +1048,8 @@ void Map::Update(const uint32& t_diff)
             {
                 if (plr->GetPlayerbotAI()->AdvanceMinimalUpdateDelay(minimalTimerAdvance))
                 {
-                    m_idleBotDueUpdates.emplace_back(plr, minimalTimerAdvance);
+                    m_idleBotDueUpdates.push_back({plr, minimalTimerAdvance, GetId(), GetInstanceId(),
+                        plr->GetPlayerbotAI()->GetTransitionGeneration()});
                 }
                 else
                     ++performanceSkippedMinimalBotUpdates;
