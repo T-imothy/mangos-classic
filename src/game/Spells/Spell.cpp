@@ -3525,7 +3525,15 @@ void Spell::SendSpellCooldown()
     if (m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE) || m_channelOnly)
         return;
 
-    m_trueCaster->AddCooldown(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr, m_spellInfo->HasAttribute(SPELL_ATTR_COOLDOWN_ON_EVENT));
+    bool cooldownOnEvent = m_spellInfo->HasAttribute(SPELL_ATTR_COOLDOWN_ON_EVENT);
+
+    // ManTech portable services use an explicit ten-minute item cooldown.
+    // Do not leave their cooldowns on hold: an on-hold cooldown is not
+    // persisted at logout, which would let the item be reused after relogging.
+    if (m_CastItem && (m_CastItem->GetEntry() == 90000 || m_CastItem->GetEntry() == 90001))
+        cooldownOnEvent = false;
+
+    m_trueCaster->AddCooldown(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr, cooldownOnEvent);
 }
 
 void Spell::update(uint32 difftime)

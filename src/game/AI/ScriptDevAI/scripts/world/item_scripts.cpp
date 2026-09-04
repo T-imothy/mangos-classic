@@ -37,7 +37,7 @@ namespace
     {
         ITEM_MANTECH_PORTABLE_MAILBOX     = 90000,
         GO_PORTABLE_MAILBOX               = 142102,
-        PORTABLE_MAILBOX_LIFETIME_SECONDS = 300,
+        PORTABLE_MAILBOX_LIFETIME_SECONDS = 600,
     };
 
     struct ManTechPortableMailboxSpell : public SpellScript
@@ -48,9 +48,9 @@ namespace
             if (!castItem || castItem->GetEntry() != ITEM_MANTECH_PORTABLE_MAILBOX)
                 return;
 
-            // Let the native repair-bot spell own the complete client casting
+            // Let a native summon spell own the complete client casting
             // lifecycle and cooldown. At its summon point, replace only the
-            // custom item's bot with a mailbox. Normal repair-bot items remain
+            // custom item's summon with a mailbox. Native summon items remain
             // untouched and the client receives its expected cast completion.
             Map* map = summon->GetMap();
             GameObject* mailbox = GameObject::CreateGameObject(GO_PORTABLE_MAILBOX);
