@@ -70,6 +70,7 @@
 #include "LFG/LFGMgr.h"
 #include "Spells/SpellStacking.h"
 #include "Mails/ManTechPortableUtilityGrant.h"
+#include "revision_sql.h"
 
 #ifdef BUILD_AHBOT
  #include "AuctionHouseBot/AuctionHouseBot.h"
@@ -665,6 +666,10 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_MAP_IDLE_BOT_JITTER_MS, "MapUpdate.IdleBotJitterMs", 4000);
     setConfig(CONFIG_UINT32_MAP_CELL_THREADS, "MapUpdate.CellThreads", 2);
     setConfigMin(CONFIG_UINT32_MAP_CELL_CHUNK_SIZE, "MapUpdate.CellChunkSize", 64, 8);
+    setConfigMin(CONFIG_UINT32_MAP_CELL_MIN_PARALLEL_CELLS, "MapUpdate.CellMinParallelCells", 128, 1);
+    setConfigMin(CONFIG_UINT32_MAP_CELL_MAX_CHUNKS_PER_MAP, "MapUpdate.CellMaxChunksPerMap", 8, 1);
+    setConfigMin(CONFIG_UINT32_MAP_CELL_MAX_WAIT_MS, "MapUpdate.CellMaxWaitMs", 75, 1);
+    setConfigMin(CONFIG_UINT32_MAP_CELL_FALLBACK_SECONDS, "MapUpdate.CellFallbackSeconds", 30, 1);
     setConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED, "PerformanceLog.Enabled", true);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_WORLD_MS, "PerformanceLog.SlowWorldUpdateMs", 200, 1);
     setConfigMin(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS, "PerformanceLog.SlowMapUpdateMs", 100, 1);
@@ -682,6 +687,36 @@ void World::LoadConfigSettings(bool reload)
     setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_RECOVER_WORLD_MS, "AdaptiveLoad.RecoverWorldMs", 120, 1);
     setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_MIN_VISIBILITY_PERCENT, "AdaptiveLoad.MinVisibilityPercent", 70, 25, 100);
     setConfigMinMax(CONFIG_UINT32_ADAPTIVE_LOAD_VISIBILITY_STEP_PERCENT, "AdaptiveLoad.VisibilityStepPercent", 5, 1, 25);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_BOT_BUDGET_MS, "AdaptiveLoad.BotBudgetMs", 20, 1);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_BACKGROUND_BOT_MIN_UPDATES, "AdaptiveLoad.BackgroundBotMinUpdates", 16, 1);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_BACKGROUND_BOT_MAX_DEFERRAL_MS, "AdaptiveLoad.BackgroundBotMaxDeferralMs", 15000, 1000);
+    setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_BOT_RECOVERY_TICKS, "AdaptiveLoad.BotRecoveryTicks", 20, 1);
+    setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_SOFT_MB, "AdaptiveLoad.MemorySoftMB", 0);
+    setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_HARD_MB, "AdaptiveLoad.MemoryHardMB", 0);
+    setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_RECOVER_MB, "AdaptiveLoad.MemoryRecoverMB", 0);
+    uint32 memorySoftMb = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_SOFT_MB);
+    uint32 memoryHardMb = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_HARD_MB);
+    uint32 memoryRecoverMb = getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_RECOVER_MB);
+    if (memorySoftMb && memoryHardMb && memoryHardMb <= memorySoftMb)
+    {
+        memoryHardMb = memorySoftMb + std::max<uint32>(256, memorySoftMb / 10);
+        setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_HARD_MB, memoryHardMb);
+        sLog.outError("AdaptiveLoad.MemoryHardMB must exceed MemorySoftMB; adjusted to %u MB.", memoryHardMb);
+    }
+    if (!memorySoftMb && memoryRecoverMb)
+    {
+        memoryRecoverMb = 0;
+        setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_RECOVER_MB, 0);
+        sLog.outError("AdaptiveLoad.MemoryRecoverMB requires MemorySoftMB; recovery threshold disabled.");
+    }
+    else if (memorySoftMb && (!memoryRecoverMb || memoryRecoverMb >= memorySoftMb))
+    {
+        memoryRecoverMb = std::max<uint32>(1, memorySoftMb * 9 / 10);
+        setConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_RECOVER_MB, memoryRecoverMb);
+        sLog.outError("AdaptiveLoad.MemoryRecoverMB must be below MemorySoftMB; adjusted to %u MB.", memoryRecoverMb);
+    }
+    sLog.outString("Arch3 memory guard: soft=%u MB hard=%u MB recover=%u MB",
+        memorySoftMb, memoryHardMb, memoryRecoverMb);
     setConfig(CONFIG_BOOL_ADAPTIVE_LOAD_PER_MAP_ENABLED, "AdaptiveLoad.PerMap.Enabled", true);
     setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_SLOW_MS, "AdaptiveLoad.PerMap.SlowMs", 100, 1);
     setConfigMin(CONFIG_UINT32_ADAPTIVE_LOAD_PER_MAP_RECOVER_MS, "AdaptiveLoad.PerMap.RecoverMs", 50, 1);
@@ -1539,6 +1574,33 @@ void World::SetInitialWorldSettings()
 #endif
 
     ManTechPortableUtilityGrant::BackfillExistingCharacters();
+
+    sLog.outString("ARCH3_STARTUP realm=classic world_db=%s character_db=%s data_dir=%s",
+        REVISION_DB_MANGOS, REVISION_DB_CHARACTERS, m_dataPath.c_str());
+    bool arch3WorldMigrationReady = false;
+    if (auto migrationTable = WorldDatabase.Query("SHOW TABLES LIKE 'mantech_migration'"))
+        arch3WorldMigrationReady = static_cast<bool>(WorldDatabase.Query("SELECT 1 FROM mantech_migration WHERE id='arch3-world-classic-v1' LIMIT 1"));
+    sLog.outString("ARCH3_STARTUP migration_world=%u", arch3WorldMigrationReady ? 1u : 0u);
+    if (!arch3WorldMigrationReady)
+        sLog.outError("ARCH3_STARTUP required world migration arch3-world-classic-v1 is missing.");
+    const bool portableMailboxReady = ObjectMgr::GetItemPrototype(65000) != nullptr;
+    const bool portableRepairReady = ObjectMgr::GetItemPrototype(65001) != nullptr;
+    sLog.outString("ARCH3_STARTUP portable_mailbox=%u portable_repair=%u adaptive_load=%u bot_budget_ms=%u max_bot_deferral_ms=%u repeated_warning_interval_ms=%u memory_soft_mb=%u memory_hard_mb=%u memory_recover_mb=%u",
+        portableMailboxReady ? 1u : 0u, portableRepairReady ? 1u : 0u,
+        getConfig(CONFIG_BOOL_ADAPTIVE_LOAD_ENABLED) ? 1u : 0u,
+        getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_BOT_BUDGET_MS),
+        getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_BACKGROUND_BOT_MAX_DEFERRAL_MS),
+        std::max<uint32>(1000, sConfig.GetIntDefault("Diagnostics.RepeatedWarningIntervalMs", 300000)),
+        getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_SOFT_MB),
+        getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_HARD_MB),
+        getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_MEMORY_RECOVER_MB));
+    if (!portableMailboxReady || !portableRepairReady)
+        sLog.outError("ARCH3_STARTUP portable utility item data is incomplete; apply the Arch3 world migration before testing those items.");
+#ifdef ENABLE_PLAYERBOTS
+    sLog.outString("ARCH3_STARTUP playerbots=%u diagnostics_mode=%u diagnostics_interval_ms=%u path_retry_ms=%u",
+        sPlayerbotAIConfig.enabled ? 1u : 0u, sPlayerbotAIConfig.diagnosticsMode,
+        sPlayerbotAIConfig.diagnosticsInterval, sPlayerbotAIConfig.pathFailureRetryMs);
+#endif
 
 #ifdef ENABLE_MODULES
     sModuleMgr.OnWorldInitialized();
