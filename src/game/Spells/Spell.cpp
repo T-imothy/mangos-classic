@@ -3020,6 +3020,11 @@ SpellCastResult Spell::SpellStart(SpellCastTargets const* targets, Aura* trigger
     if (result != SPELL_CAST_OK)
     {
         SendCastResult(result);
+        // Vanilla can leave an item spell's targeting visual active when a
+        // server-side cooldown rejects the cast before Prepare(). Explicitly
+        // terminate the portable utility cast on the client as well.
+        if (m_CastItem && (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001))
+            SendInterrupted(result);
         finish(false);
         return result;
     }
@@ -3530,10 +3535,35 @@ void Spell::SendSpellCooldown()
     // ManTech portable services use an explicit persistent item cooldown.
     // Do not leave their cooldowns on hold: an on-hold cooldown is not
     // persisted at logout, which would let the item be reused after relogging.
-    if (m_CastItem && (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001))
+    bool const portableUtility = m_CastItem &&
+        (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001);
+    if (portableUtility)
         cooldownOnEvent = false;
 
     m_trueCaster->AddCooldown(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr, cooldownOnEvent);
+
+    // Item-spell cooldowns normally rely on the client starting its own timer.
+    // Custom item templates are not reliable here on the 1.12 client, so send
+    // the authoritative duration and prevent another targeting cast locally.
+    if (portableUtility && m_trueCaster->GetTypeId() == TYPEID_PLAYER)
+    {
+        uint32 duration = 0;
+        for (auto const& itemSpell : m_CastItem->GetProto()->Spells)
+            if (itemSpell.SpellId == m_spellInfo->Id && itemSpell.SpellCooldown > 0)
+            {
+                duration = uint32(itemSpell.SpellCooldown);
+                break;
+            }
+
+        if (duration)
+        {
+            WorldPacket data(SMSG_SPELL_COOLDOWN, 8 + 1 + 8);
+            data << m_trueCaster->GetObjectGuid();
+            data << uint32(m_spellInfo->Id);
+            data << uint32(duration);
+            static_cast<Player*>(m_trueCaster)->GetSession()->SendPacket(data);
+        }
+    }
 }
 
 void Spell::update(uint32 difftime)
