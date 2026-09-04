@@ -515,6 +515,10 @@ void Master::clearOnlineAccounts()
 
     // Battleground instance ids reset at server restart
     CharacterDatabase.Execute("UPDATE character_battleground_data SET instance_id = 0");
+
+    // Portable utility cooldowns survive logout/relog but intentionally reset
+    // when the entire world server restarts.
+    CharacterDatabase.Execute("DELETE FROM character_spell_cooldown WHERE ItemId IN (65000, 65001)");
 }
 
 /// Handle termination signals
