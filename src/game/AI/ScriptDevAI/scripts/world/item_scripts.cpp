@@ -35,51 +35,42 @@ namespace
 {
     enum ManTechPortableUtility
     {
-        SPELL_PORTABLE_MAILBOX_CLIENT_USE = 22700,
-        GO_PORTABLE_MAILBOX                = 142102,
-        PORTABLE_MAILBOX_LIFETIME_SECONDS  = 300,
+        ITEM_MANTECH_PORTABLE_MAILBOX     = 90000,
+        GO_PORTABLE_MAILBOX               = 142102,
+        PORTABLE_MAILBOX_LIFETIME_SECONDS = 300,
     };
 
-    bool ItemUse_item_mantech_portable_mailbox(Player* player, Item* item, SpellCastTargets const& /*targets*/)
+    struct ManTechPortableMailboxSpell : public SpellScript
     {
-        SpellEntry const* clientSpell = GetSpellStore()->LookupEntry<SpellEntry>(SPELL_PORTABLE_MAILBOX_CLIENT_USE);
-        if (!clientSpell)
-            return false;
-
-        // Scripted item uses bypass the normal Spell object, so enforce and
-        // start the item-defined cooldown here before completing the use.
-        if (!player->IsSpellReady(*clientSpell, item->GetProto()))
+        void OnSummon(Spell* spell, Creature* summon) const override
         {
-            player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
-            Spell::SendCastResult(player, clientSpell, SPELL_FAILED_NOT_READY);
-            return true;
+            Item* castItem = spell->GetCastItem();
+            if (!castItem || castItem->GetEntry() != ITEM_MANTECH_PORTABLE_MAILBOX)
+                return;
+
+            // Let the native repair-bot spell own the complete client casting
+            // lifecycle and cooldown. At its summon point, replace only the
+            // custom item's bot with a mailbox. Normal repair-bot items remain
+            // untouched and the client receives its expected cast completion.
+            Map* map = summon->GetMap();
+            GameObject* mailbox = GameObject::CreateGameObject(GO_PORTABLE_MAILBOX);
+            uint32 lowGuid = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
+
+            if (mailbox->Create(lowGuid, lowGuid, GO_PORTABLE_MAILBOX, map,
+                    summon->GetPositionX(), summon->GetPositionY(), summon->GetPositionZ(), summon->GetOrientation()))
+            {
+                mailbox->SetRespawnTime(PORTABLE_MAILBOX_LIFETIME_SECONDS);
+                mailbox->SetSpellId(spell->m_spellInfo->Id);
+                mailbox->SetSpawnerGuid(spell->GetTrueCaster()->GetObjectGuid());
+                map->Add(mailbox);
+                mailbox->AIM_Initialize();
+            }
+            else
+                delete mailbox;
+
+            summon->ForcedDespawn();
         }
-
-        Map* map = player->GetMap();
-        GameObject* mailbox = GameObject::CreateGameObject(GO_PORTABLE_MAILBOX);
-
-        float x, y, z;
-        player->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE);
-        uint32 lowGuid = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
-
-        if (!mailbox->Create(lowGuid, lowGuid, GO_PORTABLE_MAILBOX, map, x, y, z, player->GetOrientation()))
-        {
-            delete mailbox;
-            player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
-            Spell::SendCastResult(player, clientSpell, SPELL_FAILED_ERROR);
-            return true;
-        }
-
-        mailbox->SetRespawnTime(PORTABLE_MAILBOX_LIFETIME_SECONDS);
-        mailbox->SetSpellId(SPELL_PORTABLE_MAILBOX_CLIENT_USE);
-        mailbox->SetSpawnerGuid(player->GetObjectGuid());
-        map->Add(mailbox);
-        mailbox->AIM_Initialize();
-
-        player->AddCooldown(*clientSpell, item->GetProto());
-        player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
-        return true;
-    }
+    };
 }
 
 /*#####
@@ -477,11 +468,6 @@ struct LinkensBoomerang : public SpellScript
 void AddSC_item_scripts()
 {
     Script* pNewScript = new Script;
-    pNewScript->Name = "item_mantech_portable_mailbox";
-    pNewScript->pItemUse = &ItemUse_item_mantech_portable_mailbox;
-    pNewScript->RegisterSelf();
-
-    pNewScript = new Script;
     pNewScript->Name = "item_orb_of_draconic_energy";
     pNewScript->pItemUse = &ItemUse_item_orb_of_draconic_energy;
     pNewScript->RegisterSelf();
@@ -502,4 +488,5 @@ void AddSC_item_scripts()
     RegisterSpellScript<ToshleysStationTransporter>("spell_toshleys_station_transporter");
     RegisterSpellScript<Area52Transporter>("spell_area52_transporter");
     RegisterSpellScript<LinkensBoomerang>("spell_linkens_boomerang");
+    RegisterSpellScript<ManTechPortableMailboxSpell>("spell_mantech_portable_mailbox");
 }
