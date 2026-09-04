@@ -69,6 +69,7 @@
 #include "Anticheat/Anticheat.hpp"
 #include "LFG/LFGMgr.h"
 #include "Spells/SpellStacking.h"
+#include "Mails/ManTechPortableUtilityGrant.h"
 
 #ifdef BUILD_AHBOT
  #include "AuctionHouseBot/AuctionHouseBot.h"
@@ -1536,6 +1537,8 @@ void World::SetInitialWorldSettings()
     auctionbot.Init();
 #endif
 #endif
+
+    ManTechPortableUtilityGrant::BackfillExistingCharacters();
 
 #ifdef ENABLE_MODULES
     sModuleMgr.OnWorldInitialized();
