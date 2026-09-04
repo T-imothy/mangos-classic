@@ -24,10 +24,63 @@ EndScriptData
 */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
+#include "Entities/GameObject.h"
+#include "Maps/Map.h"
 #include "Spells/Spell.h"
 #include "Spells/Scripts/SpellScript.h"
 /* ContentData
 EndContentData */
+
+namespace
+{
+    enum ManTechPortableUtility
+    {
+        SPELL_PORTABLE_MAILBOX_CLIENT_USE = 22700,
+        GO_PORTABLE_MAILBOX                = 142102,
+        PORTABLE_MAILBOX_LIFETIME_SECONDS  = 300,
+    };
+
+    bool ItemUse_item_mantech_portable_mailbox(Player* player, Item* item, SpellCastTargets const& /*targets*/)
+    {
+        SpellEntry const* clientSpell = GetSpellStore()->LookupEntry<SpellEntry>(SPELL_PORTABLE_MAILBOX_CLIENT_USE);
+        if (!clientSpell)
+            return false;
+
+        // Scripted item uses bypass the normal Spell object, so enforce and
+        // start the item-defined cooldown here before completing the use.
+        if (!player->IsSpellReady(*clientSpell, item->GetProto()))
+        {
+            player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
+            Spell::SendCastResult(player, clientSpell, SPELL_FAILED_NOT_READY);
+            return true;
+        }
+
+        Map* map = player->GetMap();
+        GameObject* mailbox = GameObject::CreateGameObject(GO_PORTABLE_MAILBOX);
+
+        float x, y, z;
+        player->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE);
+        uint32 lowGuid = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
+
+        if (!mailbox->Create(lowGuid, lowGuid, GO_PORTABLE_MAILBOX, map, x, y, z, player->GetOrientation()))
+        {
+            delete mailbox;
+            player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
+            Spell::SendCastResult(player, clientSpell, SPELL_FAILED_ERROR);
+            return true;
+        }
+
+        mailbox->SetRespawnTime(PORTABLE_MAILBOX_LIFETIME_SECONDS);
+        mailbox->SetSpellId(SPELL_PORTABLE_MAILBOX_CLIENT_USE);
+        mailbox->SetSpawnerGuid(player->GetObjectGuid());
+        map->Add(mailbox);
+        mailbox->AIM_Initialize();
+
+        player->AddCooldown(*clientSpell, item->GetProto());
+        player->SendEquipError(EQUIP_ERR_NONE, item, nullptr);
+        return true;
+    }
+}
 
 /*#####
 # item_orb_of_draconic_energy
@@ -424,6 +477,11 @@ struct LinkensBoomerang : public SpellScript
 void AddSC_item_scripts()
 {
     Script* pNewScript = new Script;
+    pNewScript->Name = "item_mantech_portable_mailbox";
+    pNewScript->pItemUse = &ItemUse_item_mantech_portable_mailbox;
+    pNewScript->RegisterSelf();
+
+    pNewScript = new Script;
     pNewScript->Name = "item_orb_of_draconic_energy";
     pNewScript->pItemUse = &ItemUse_item_orb_of_draconic_energy;
     pNewScript->RegisterSelf();
