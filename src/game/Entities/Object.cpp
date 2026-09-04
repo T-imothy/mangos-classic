@@ -45,6 +45,14 @@
 #include "Spells/SpellMgr.h"
 #include "MotionGenerators/PathFinder.h"
 
+namespace
+{
+    bool IsManTechPortableUtility(uint32 itemId)
+    {
+        return itemId == 65000 || itemId == 65001;
+    }
+}
+
 Object::Object(): m_updateFlag(0), m_itsNewObject(false), m_dbGuid(0), m_scriptRef(this, NoopObjectDeleter())
 {
     m_objectTypeId      = TYPEID_OBJECT;
@@ -2728,6 +2736,19 @@ bool WorldObject::IsSpellReady(SpellEntry const& spellEntry, ItemPrototype const
 
     if (!m_cooldownMap.IsGlobalCooldownExpired(now))
         return false;
+
+    // These two services share one persisted cooldown even though the normal
+    // item cooldown path scopes a cooldown to the item that created it.
+    if (itemProto && IsManTechPortableUtility(itemProto->ItemId))
+    {
+        for (auto const& cooldown : m_cooldownMap)
+        {
+            CooldownData const* data = cooldown.second.get();
+            if (IsManTechPortableUtility(data->GetItemId()) &&
+                    (!data->IsSpellCDExpired(now) || !data->IsCatCDExpired(now)))
+                return false;
+        }
+    }
 
     // overwrite category by provided category in item prototype during item cast if need
     if (itemProto)

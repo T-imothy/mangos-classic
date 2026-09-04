@@ -3530,7 +3530,7 @@ void Spell::SendSpellCooldown()
     // ManTech portable services use an explicit persistent item cooldown.
     // Do not leave their cooldowns on hold: an on-hold cooldown is not
     // persisted at logout, which would let the item be reused after relogging.
-    if (m_CastItem && (m_CastItem->GetEntry() == 90000 || m_CastItem->GetEntry() == 90001))
+    if (m_CastItem && (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001))
         cooldownOnEvent = false;
 
     m_trueCaster->AddCooldown(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr, cooldownOnEvent);

@@ -35,7 +35,7 @@ namespace
 {
     enum ManTechPortableUtility
     {
-        ITEM_MANTECH_PORTABLE_MAILBOX     = 90000,
+        ITEM_MANTECH_PORTABLE_MAILBOX     = 65000,
         GO_PORTABLE_MAILBOX               = 142102,
         PORTABLE_MAILBOX_LIFETIME_SECONDS = 600,
     };
