@@ -18226,6 +18226,12 @@ void Player::SendInitialPacketsBeforeAddToMap()
     // tutorial stuff
     GetSession()->SendTutorialsData();
 
+    // These server-defined reusable items can change during development while
+    // the 1.12 client retains an older WDB entry. Refresh their definitions on
+    // login so players never need to delete client cache files manually.
+    GetSession()->SendItemQuerySingleResponse(65000);
+    GetSession()->SendItemQuerySingleResponse(65001);
+
     SendInitialSpells();
 
     SendInitialActionButtons();

@@ -42,33 +42,34 @@ namespace
 
     struct ManTechPortableMailboxSpell : public SpellScript
     {
-        void OnSummon(Spell* spell, Creature* summon) const override
+        void OnCast(Spell* spell) const override
         {
             Item* castItem = spell->GetCastItem();
             if (!castItem || castItem->GetEntry() != ITEM_MANTECH_PORTABLE_MAILBOX)
                 return;
 
-            // Let a native summon spell own the complete client casting
-            // lifecycle and cooldown. At its summon point, replace only the
-            // custom item's summon with a mailbox. Native summon items remain
-            // untouched and the client receives its expected cast completion.
-            Map* map = summon->GetMap();
+            // The carrier is an unused, instant self-target dummy spell. Spawn
+            // the service directly at a validated nearby point so the cast has
+            // no ground-target cursor, hidden range check, or lingering visual.
+            WorldObject* caster = spell->GetTrueCaster();
+            Map* map = caster->GetMap();
+            float x, y, z;
+            caster->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE, 1.0f);
+
             GameObject* mailbox = GameObject::CreateGameObject(GO_PORTABLE_MAILBOX);
             uint32 lowGuid = map->GenerateLocalLowGuid(HIGHGUID_GAMEOBJECT);
 
             if (mailbox->Create(lowGuid, lowGuid, GO_PORTABLE_MAILBOX, map,
-                    summon->GetPositionX(), summon->GetPositionY(), summon->GetPositionZ(), summon->GetOrientation()))
+                    x, y, z, caster->GetOrientation()))
             {
                 mailbox->SetRespawnTime(PORTABLE_MAILBOX_LIFETIME_SECONDS);
                 mailbox->SetSpellId(spell->m_spellInfo->Id);
-                mailbox->SetSpawnerGuid(spell->GetTrueCaster()->GetObjectGuid());
+                mailbox->SetSpawnerGuid(caster->GetObjectGuid());
                 map->Add(mailbox);
                 mailbox->AIM_Initialize();
             }
             else
                 delete mailbox;
-
-            summon->ForcedDespawn();
         }
     };
 }
