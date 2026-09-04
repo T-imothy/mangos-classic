@@ -44,6 +44,8 @@
 #include "Loot/LootMgr.h"
 #include "Spells/SpellMgr.h"
 #include "MotionGenerators/PathFinder.h"
+#include <atomic>
+#include <chrono>
 
 Object::Object(): m_updateFlag(0), m_itsNewObject(false), m_dbGuid(0), m_scriptRef(this, NoopObjectDeleter())
 {
@@ -306,7 +308,20 @@ void Object::BuildMovementUpdate(ByteBuffer* data, uint8 updateFlags) const
         MANGOS_ASSERT(unit);
         if (unit->IsStopped() && unit->m_movementInfo.HasMovementFlag(MOVEFLAG_SPLINE_ENABLED))
         {
-            sLog.outError("%s is not moving but have spline movement enabled!", GetGuidStr().c_str());
+            static std::atomic<uint64> staleSplineCorrections{0};
+            static std::atomic<uint64> lastStaleSplineReportMs{0};
+            staleSplineCorrections.fetch_add(1, std::memory_order_relaxed);
+
+            const uint64 nowMs = static_cast<uint64>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
+            uint64 lastReportMs = lastStaleSplineReportMs.load(std::memory_order_relaxed);
+            if (nowMs >= lastReportMs + 30000 &&
+                lastStaleSplineReportMs.compare_exchange_strong(lastReportMs, nowMs, std::memory_order_relaxed))
+            {
+                const uint64 corrected = staleSplineCorrections.exchange(0, std::memory_order_relaxed);
+                sLog.outPerformance("STALE_SPLINE_CORRECTION count=%llu last_guid=%s",
+                    static_cast<unsigned long long>(corrected), GetGuidStr().c_str());
+            }
             ((Unit*)this)->m_movementInfo.RemoveMovementFlag(MovementFlags(MOVEFLAG_SPLINE_ENABLED | MOVEFLAG_FORWARD));
         }
 
