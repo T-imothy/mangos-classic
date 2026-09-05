@@ -248,6 +248,8 @@ class MailDraft
          */
         MailDraft& SetCOD(uint32 COD) { m_COD = COD; return *this; }
         MailDraft& SetGrantKey(std::string const& grantKey) { m_grantKey = grantKey; return *this; }
+        // Delete the original and create its return in the same DB transaction.
+        MailDraft& SetReturnSourceMailId(uint32 id) { m_returnSourceMailId = id; return *this; }
 
         void CloneFrom(MailDraft const& draft);
     public:                                                 // finishers
@@ -276,6 +278,7 @@ class MailDraft
         /// The cod amount of this MailDraft.
         uint32 m_COD;
         std::string m_grantKey;                            ///< Optional ManTech one-time grant recorded atomically with this mail.
+        uint32 m_returnSourceMailId = 0;
 };
 /**
  * Structure holding information about an item in the mail.

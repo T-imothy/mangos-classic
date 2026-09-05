@@ -316,6 +316,11 @@ void MailDraft::SendMailTo(MailReceiver const& receiver, MailSender const& sende
     std::string safe_subject = GetSubject();
 
     CharacterDatabase.BeginTransaction();
+    if (m_returnSourceMailId)
+    {
+        CharacterDatabase.PExecute("DELETE FROM mail WHERE id = '%u'", m_returnSourceMailId);
+        CharacterDatabase.PExecute("DELETE FROM mail_items WHERE mail_id = '%u'", m_returnSourceMailId);
+    }
     if (!m_grantKey.empty())
     {
         for (MailItemMap::const_iterator mailItemIter = m_items.begin(); mailItemIter != m_items.end(); ++mailItemIter)
