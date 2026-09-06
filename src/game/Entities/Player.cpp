@@ -5722,6 +5722,11 @@ void Player::UpdateSkillTrainedSpells(uint16 id, uint16 currVal)
                 continue;
             }
 
+            // SkillLineAbility can retain entries for removed spells. Do not
+            // repeatedly try to teach them on login or skill updates.
+            if (!sSpellTemplate.LookupEntry<SpellEntry>(pAbility->spellId))
+                continue;
+
             // Check race if set
             if (pAbility->racemask && !(pAbility->racemask & raceMask))
                 continue;
