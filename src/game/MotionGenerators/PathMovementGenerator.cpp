@@ -73,18 +73,23 @@ void AbstractPathMovementGenerator::Initialize(Unit& unit)
 
     if (m_path.empty())
     {
-        static std::atomic<uint32> emptyPathCount{0};
-        static std::atomic<uint32> lastEmptyPathLog{0};
-        emptyPathCount.fetch_add(1, std::memory_order_relaxed);
-        uint32 const now = WorldTimer::getMSTime();
-        uint32 previous = lastEmptyPathLog.load(std::memory_order_relaxed);
-        if (!previous || WorldTimer::getMSTimeDiff(previous, now) >= 60000)
+        // Taxi generators deliberately start empty; Resume loads the first
+        // flight spline. Keep diagnostics for missing fixed/waypoint paths.
+        if (GetMovementGeneratorType() != TAXI_MOTION_TYPE)
         {
-            if (lastEmptyPathLog.compare_exchange_strong(previous, now, std::memory_order_relaxed))
+            static std::atomic<uint32> emptyPathCount{0};
+            static std::atomic<uint32> lastEmptyPathLog{0};
+            emptyPathCount.fetch_add(1, std::memory_order_relaxed);
+            uint32 const now = WorldTimer::getMSTime();
+            uint32 previous = lastEmptyPathLog.load(std::memory_order_relaxed);
+            if (!previous || WorldTimer::getMSTimeDiff(previous, now) >= 60000)
             {
-                uint32 const suppressed = emptyPathCount.exchange(0, std::memory_order_relaxed) - 1;
-                sLog.outError("AbstractPathMovementGenerator::Initialize empty path for unit name %s entry %u dbguid %u (suppressed=%u).",
-                    unit.GetName(), unit.GetEntry(), unit.GetDbGuid(), suppressed);
+                if (lastEmptyPathLog.compare_exchange_strong(previous, now, std::memory_order_relaxed))
+                {
+                    uint32 const suppressed = emptyPathCount.exchange(0, std::memory_order_relaxed) - 1;
+                    sLog.outError("AbstractPathMovementGenerator::Initialize empty path for unit name %s entry %u dbguid %u (suppressed=%u).",
+                        unit.GetName(), unit.GetEntry(), unit.GetDbGuid(), suppressed);
+                }
             }
         }
         unit.clearUnitState(UNIT_STAT_ROAMING_MOVE);
