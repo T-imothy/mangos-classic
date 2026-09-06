@@ -93,6 +93,14 @@ namespace Movement
             previous = point;
         }
 
+        // Recheck after replacing the first vertex with the current spline
+        // position: a queued fall may already have reached or passed its floor.
+        if (args.flags.falling && real_position.z - args.path.back().z < 0.01f)
+        {
+            Stop(true);
+            return 0;
+        }
+
         if (!hasMovement && !pathEmpty && !args.flags.cyclic)
         {
             Stop(true);
