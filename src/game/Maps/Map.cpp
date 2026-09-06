@@ -79,8 +79,14 @@ Map::~Map()
     delete m_weatherSystem;
     m_weatherSystem = nullptr;
 
-    for (auto m_Transport : m_transports)
-        delete m_Transport;
+    for (auto transport : m_transports)
+    {
+        // Transports are added through Object::AddToWorld outside the grids.
+        // Mirror that registration before destruction, as the Wrath core does.
+        transport->Object::RemoveFromWorld();
+        transport->ResetMap();
+        delete transport;
+    }
 }
 
 uint32 Map::GetCurrentMSTime() const
