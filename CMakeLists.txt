@@ -88,6 +88,7 @@ if(MSVC)
 endif()
 
 # Modules setup
+include(cmake/mantech_baseline.cmake)
 if(BUILD_MODULES)
   # Keep the module framework and selected modules in-tree. This makes builds
   # reproducible and prevents a moving upstream branch from changing the server.

@@ -702,8 +702,22 @@ namespace cmangos_module
             }
         }
 
-        // Return false to also save the buttons to the default character table 
-        // in case of disabling the dual spec system
+        // This hook consumes the dirty states above, so the core's incremental
+        // saver can no longer see them. Mirror the active snapshot explicitly,
+        // including an empty bar and a switch to an already-saved spec. These
+        // statements participate in Player::SaveToDB's existing transaction.
+        if (GetConfig()->enabled && player)
+        {
+#ifdef ENABLE_PLAYERBOTS
+            if (!player->isRealPlayer())
+                return false;
+#endif
+            const uint32 playerId = player->GetObjectGuid().GetCounter();
+            CharacterDatabase.PExecute("DELETE FROM `character_action` WHERE `guid` = '%u';", playerId);
+            CharacterDatabase.PExecute("INSERT INTO `character_action` (`guid`, `button`, `action`, `type`) SELECT `guid`, `button`, `action`, `type` FROM `custom_dualspec_action` WHERE `guid` = '%u' AND `spec` = '%u';",
+                playerId, GetPlayerActiveSpec(playerId));
+            return true;
+        }
         return false;
     }
 
