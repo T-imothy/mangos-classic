@@ -498,7 +498,7 @@ struct boss_high_inquisitor_whitemaneAI : public CombatAI
             {
                 if (!urand(0, 50))
                     if (Unit* target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, SPELL_DOMINATEMIND, SELECT_FLAG_PLAYER))
-                        if (DoCastSpellIfCan(target, SPELL_DOMINATEMIND))
+                        if (DoCastSpellIfCan(target, SPELL_DOMINATEMIND) == CAST_OK)
                             ResetCombatAction(action, urand(20000, 30000));
                 return;
             }

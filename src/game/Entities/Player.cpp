@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "Entities/PortableRepairVendor.h"
 #include "Entities/Player.h"
 #include "Tools/Language.h"
 #include "Database/DatabaseEnv.h"
@@ -17776,7 +17777,7 @@ bool Player::BuyItemFromVendor(ObjectGuid vendorGuid, uint32 item, uint8 count, 
         return false;
     }
 
-    uint32 price = pProto->BuyPrice * count;
+    uint32 price = PortableRepairVendor::GetBuyPrice(pCreature->GetEntry(), pProto->ItemId, pProto->BuyPrice) * count;
 
     // reputation discount
     price = uint32(floor(price * GetReputationPriceDiscount(pCreature)));

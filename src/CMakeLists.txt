@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "3dd1ee87cb0462cc322de47864cb3da1143b89d6" # playerbot-behavior-enhancements: native encounter/class support WIP
+        GIT_TAG "6005d6cec8e0e4f10053a02c8e11c237a3adb4f4" # verified mantech-playerbots release
   )
 
   FetchContent_GetProperties(PlayerBots)
@@ -41,6 +41,7 @@ if(BUILD_PLAYERBOTS)
   endif()
 
   add_subdirectory(${playerbots_SOURCE_DIR} ${CMAKE_BINARY_DIR}/playerbots)
+  include("${CMAKE_SOURCE_DIR}/cmake/playerbot_loot_policy.cmake")
 
 else()
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots)

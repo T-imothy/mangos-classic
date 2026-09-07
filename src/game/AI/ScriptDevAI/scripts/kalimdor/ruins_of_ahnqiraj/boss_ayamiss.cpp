@@ -248,7 +248,7 @@ struct boss_ayamissAI : public CombatAI
                 if (!target)
                     target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, SPELL_PARALYZE, SELECT_FLAG_PLAYER);
 
-                if (DoCastSpellIfCan(target, SPELL_PARALYZE) == CAST_OK)
+                if (target && DoCastSpellIfCan(target, SPELL_PARALYZE) == CAST_OK)
                 {
                     m_paralyzeTarget = target->GetObjectGuid();
                     ResetCombatAction(action, 15000);

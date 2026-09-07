@@ -323,8 +323,8 @@ struct boss_yaujAI : public boss_silithidRoyaltyAI
             summoned->SetInCombatWithZone();
             if (Unit* target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, nullptr, SELECT_FLAG_PLAYER))
             {
-                m_creature->AddThreat(target, 1000000.f);
-                AttackStart(target);
+                summoned->AddThreat(target, 1000000.f);
+                summoned->AI()->AttackStart(target);
             }
         }
     }
