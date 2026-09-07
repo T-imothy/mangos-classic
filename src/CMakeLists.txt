@@ -41,6 +41,7 @@ if(BUILD_PLAYERBOTS)
   endif()
 
   add_subdirectory(${playerbots_SOURCE_DIR} ${CMAKE_BINARY_DIR}/playerbots)
+  include("${CMAKE_SOURCE_DIR}/cmake/playerbot_loot_policy.cmake")
 
 else()
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots)
