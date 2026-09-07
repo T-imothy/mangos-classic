@@ -107,7 +107,8 @@ struct ThousandBladesRenataki : public SpellScript
         // remove current target
         selectedTargets.erase(std::remove(selectedTargets.begin(), selectedTargets.end(), spell->m_targets.getUnitTarget()), selectedTargets.end());
         std::shuffle(selectedTargets.begin(), selectedTargets.end(), *GetRandomGenerator());
-        selectedTargets.resize(9);
+        if (selectedTargets.size() > 9)
+            selectedTargets.resize(9);
         for (Unit* target : selectedTargets)
             caster->CastSpell(target, SPELL_THOUSAND_BLADES, TRIGGERED_OLD_TRIGGERED | TRIGGERED_INSTANT_CAST);
     }
