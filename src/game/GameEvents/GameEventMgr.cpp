@@ -843,7 +843,7 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
                             // fetching here again for future reloading
                             CreatureData const* data = sObjectMgr.GetCreatureData(creatureDbGuid);
                             MANGOS_ASSERT(data);
-                            if (map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
+                            if (!map->Instanceable() && map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
                                 continue;
                             map->GetPersistentState()->AddCreatureToGrid(creatureDbGuid, data);
                             map->GetSpawnManager().AddEventGuid(creatureDbGuid, HIGHGUID_UNIT);
@@ -855,10 +855,10 @@ void GameEventMgr::GameEventSpawn(int16 event_id)
                         {
                             GameObjectData const* data = sObjectMgr.GetGOData(goDbGuid);
                             MANGOS_ASSERT(data);
-                            if (map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
+                            if (!map->Instanceable() && map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
                                 continue;
                             map->GetPersistentState()->AddGameobjectToGrid(goDbGuid, data);
-                            map->GetSpawnManager().AddEventGuid(goDbGuid, HIGHGUID_UNIT);
+                            map->GetSpawnManager().AddEventGuid(goDbGuid, HIGHGUID_GAMEOBJECT);
                             if (map->IsLoaded(data->posX, data->posY))
                                 GameObject::SpawnGameObject(goDbGuid, map); // dynguid
                         }
@@ -955,7 +955,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
                             // fetching here again for future reloading
                             CreatureData const* data = sObjectMgr.GetCreatureData(creatureDbGuid);
                             MANGOS_ASSERT(data);
-                            if (map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
+                            if (!map->Instanceable() && map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
                                 continue;
                             map->GetPersistentState()->RemoveCreatureFromGrid(creatureDbGuid, data);
                             map->GetSpawnManager().RemoveEventGuid(creatureDbGuid, HIGHGUID_UNIT);
@@ -968,7 +968,7 @@ void GameEventMgr::GameEventUnspawn(int16 event_id)
                         {
                             GameObjectData const* data = sObjectMgr.GetGOData(goDbGuid);
                             MANGOS_ASSERT(data);
-                            if (map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
+                            if (!map->Instanceable() && map->GetInstanceId() != sMapMgr.GetContinentInstanceId(data->mapid, data->posX, data->posY))
                                 continue;
                             map->GetPersistentState()->RemoveGameobjectFromGrid(goDbGuid, data);
                             map->GetSpawnManager().RemoveEventGuid(goDbGuid, HIGHGUID_GAMEOBJECT);

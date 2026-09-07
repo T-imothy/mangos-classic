@@ -40,10 +40,7 @@ struct PoolTemplateData
     std::string description;
 
     // helpers
-    bool CanBeSpawnedAtMap(MapEntry const* entry, uint32 mapInstanceId) const
-    {
-        return mapEntry && mapEntry == entry && instanceId == mapInstanceId;
-    }
+    bool CanBeSpawnedAtMap(MapEntry const* entry, uint32 mapInstanceId) const;
 };
 
 struct PoolObject
