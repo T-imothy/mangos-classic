@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "Entities/PortableRepairVendor.h"
 #include "Common.h"
 #include "Server/WorldPacket.h"
 #include "Server/WorldSession.h"
@@ -796,7 +797,7 @@ void WorldSession::SendListInventory(ObjectGuid vendorguid) const
                 ++count;
 
                 // reputation discount
-                uint32 price = uint32(floor(pProto->BuyPrice * discountMod));
+                uint32 price = uint32(floor(PortableRepairVendor::GetBuyPrice(pCreature->GetEntry(), pProto->ItemId, pProto->BuyPrice) * discountMod));
 
                 data << uint32(count);
                 data << uint32(itemId);
