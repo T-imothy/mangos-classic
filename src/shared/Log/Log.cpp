@@ -219,8 +219,27 @@ void Log::SetLogFileLevel(char* level)
     printf("LogFileLevel is %u\n", static_cast<uint8>(m_logFileLevel));
 }
 
+void Log::CloseLogFiles()
+{
+    FILE** streams[] = { &logfile, &gmLogfile, &charLogfile, &dberLogfile, &eventAiErLogfile,
+        &scriptErrLogFile, &raLogfile, &worldLogfile, &customLogFile, &performanceLogFile };
+    for (FILE** stream : streams)
+    {
+        if (*stream)
+            fclose(*stream);
+        *stream = nullptr;
+    }
+    m_rotationFiles.clear();
+    m_rotationRetryAfter.clear();
+    m_nextRotationCheck = 0;
+}
+
 void Log::Initialize()
 {
+    std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    // realmd explicitly initializes the singleton after its constructor has
+    // already initialized it. Close those streams before opening replacements.
+    CloseLogFiles();
     /// Common log files data
     m_logsDir = sConfig.GetStringDefault("LogsDir");
     if (!m_logsDir.empty())
@@ -274,15 +293,10 @@ void Log::Initialize()
     raLogfile = openLogFile("RaLogFile", nullptr, "a");
     worldLogfile = openLogFile("WorldLogFile", "WorldLogTimestamp", "a");
     customLogFile = openLogFile("CustomLogFile", nullptr, "a");
-    performanceLogFile = openLogFile("PerformanceLogFile", "PerformanceLogTimestamp", "a");
-
-    // Architecture test builds should produce useful diagnostics even when an
-    // existing mangosd.conf has not yet been updated with the new setting.
-    if (!performanceLogFile && !sConfig.IsSet("PerformanceLogFile"))
-    {
-        std::string performanceLogName = m_logsDir + "Performance.log";
-        performanceLogFile = fopen(performanceLogName.c_str(), "a");
-    }
+    // Only a world-server configuration gets the legacy default. The auth
+    // server shares this logger but must never hold the world's performance log.
+    performanceLogFile = openLogFile("PerformanceLogFile", "PerformanceLogTimestamp", "a",
+        sConfig.IsSet("WorldDatabaseInfo") ? "Performance.log" : nullptr);
 
     // Main log file settings
     m_includeTime  = sConfig.GetBoolDefault("LogTime", false);
@@ -300,9 +314,9 @@ void Log::Initialize()
     m_charLog_Dump = sConfig.GetBoolDefault("CharLogDump", false);
 }
 
-FILE* Log::openLogFile(char const* configFileName, char const* configTimeStampFlag, char const* mode)
+FILE* Log::openLogFile(char const* configFileName, char const* configTimeStampFlag, char const* mode, char const* defaultFileName)
 {
-    std::string logfn = sConfig.GetStringDefault(configFileName);
+    std::string logfn = sConfig.GetStringDefault(configFileName, defaultFileName ? defaultFileName : "");
     if (logfn.empty())
         return nullptr;
 
@@ -389,6 +403,9 @@ void Log::RotateLogFilesIfNeeded()
         if (!*stream || found == m_rotationFiles.end())
             continue;
         const auto state = found->second;
+        auto retry = m_rotationRetryAfter.find(state.first);
+        if (retry != m_rotationRetryAfter.end() && now < retry->second)
+            continue;
         try
         {
             MaNGOS::Filesystem::path path(state.first);
@@ -415,10 +432,11 @@ void Log::RotateLogFilesIfNeeded()
             else
                 std::fprintf(stderr, "Unable to reopen log after rotation: %s\n", state.first.c_str());
 
+            m_rotationRetryAfter.erase(state.first);
             const int32 retentionDays = std::max<int32>(1, sConfig.GetIntDefault("LogRotation.RetentionDays", 14));
             const time_t cutoff = now - static_cast<time_t>(retentionDays) * 24 * 60 * 60;
             const std::string prefix = path.filename().string() + ".";
-            for (MaNGOS::Filesystem::directory_iterator it(path.parent_path()), end; it != end; ++it)
+            for (MaNGOS::Filesystem::directory_iterator it(path.parent_path().empty() ? MaNGOS::Filesystem::path(".") : path.parent_path()), end; it != end; ++it)
             {
                 const std::string name = it->path().filename().string();
                 if (MaNGOS::Filesystem::is_regular_file(it->path()) && name.compare(0, prefix.size(), prefix) == 0 &&
@@ -429,7 +447,10 @@ void Log::RotateLogFilesIfNeeded()
         }
         catch (std::exception const& error)
         {
-            std::fprintf(stderr, "Runtime log rotation failed for %s: %s\n", state.first.c_str(), error.what());
+            // A viewer, backup tool or older auth process can deny rename on
+            // Windows. Keep appending and back off this file, not every logger.
+            m_rotationRetryAfter[state.first] = now + 60;
+            std::fprintf(stderr, "Runtime log rotation failed for %s; retrying in 60 seconds: %s\n", state.first.c_str(), error.what());
         }
     }
 }
