@@ -170,9 +170,18 @@ struct boss_thekalAI : public boss_thekalBaseAI
         AddTimerlessCombatAction(THEKAL_TIGER_ENRAGE, false);
         AddCustomAction(ACTION_RESSURECTION, true, [&]()
         {
-            // resurrect him in any case
-            DoCastSpellIfCan(nullptr, SPELL_RESURRECT);
+            if (!m_instance || !m_creature->IsAlive() || !m_creature->IsInCombat() ||
+                (m_uiPhase != PHASE_FAKE_DEATH && m_uiPhase != PHASE_WAITING))
+                return;
+            if (DoCastSpellIfCan(nullptr, SPELL_RESURRECT) != CAST_OK)
+            {
+                ResetTimer(ACTION_RESSURECTION, 500u);
+                return;
+            }
 
+            // Revive() resets this timer when the two-second cast lands.
+            // Otherwise retry an interrupted resurrection instead of staying down.
+            ResetTimer(ACTION_RESSURECTION, 3000u);
             m_uiPhase = PHASE_WAITING;
             if (m_instance)
             {
@@ -182,7 +191,13 @@ struct boss_thekalAI : public boss_thekalBaseAI
         });
         AddCustomAction(THEKAL_RESS_PHASE_2_DELAY, true, [&]()
         {
-            DoCastSpellIfCan(nullptr, SPELL_TIGER_FORM);
+            if (!m_creature->IsAlive() || !m_creature->IsInCombat())
+                return;
+            if (DoCastSpellIfCan(nullptr, SPELL_TIGER_FORM) != CAST_OK)
+            {
+                ResetTimer(THEKAL_RESS_PHASE_2_DELAY, 500u);
+                return;
+            }
             m_uiPhase = PHASE_TIGER;
             SetDeathPrevention(false);
             SetCombatScriptStatus(false);
@@ -327,9 +342,16 @@ struct mob_zealot_lorkhanAI : public boss_thekalBaseAI
     {
         AddCustomAction(ACTION_RESSURECTION, true, [&]()
         {
+            if (!m_instance || !m_creature->IsAlive() || !m_creature->IsInCombat() || m_uiPhase != PHASE_FAKE_DEATH)
+                return;
             if (m_instance->GetData(TYPE_THEKAL) != SPECIAL || m_instance->GetData(TYPE_ZATH) != SPECIAL)
             {
-                DoCastSpellIfCan(nullptr, SPELL_RESURRECT);
+                if (DoCastSpellIfCan(nullptr, SPELL_RESURRECT) != CAST_OK)
+                {
+                    ResetTimer(ACTION_RESSURECTION, 500u);
+                    return;
+                }
+                ResetTimer(ACTION_RESSURECTION, 3000u);
                 m_instance->SetData(TYPE_LORKHAN, IN_PROGRESS);
             }
         });
@@ -378,9 +400,16 @@ struct mob_zealot_zathAI : public boss_thekalBaseAI
     {
         AddCustomAction(ACTION_RESSURECTION, true, [&]()
         {
+            if (!m_instance || !m_creature->IsAlive() || !m_creature->IsInCombat() || m_uiPhase != PHASE_FAKE_DEATH)
+                return;
             if (m_instance->GetData(TYPE_THEKAL) != SPECIAL || m_instance->GetData(TYPE_LORKHAN) != SPECIAL)
             {
-                DoCastSpellIfCan(nullptr, SPELL_RESURRECT);
+                if (DoCastSpellIfCan(nullptr, SPELL_RESURRECT) != CAST_OK)
+                {
+                    ResetTimer(ACTION_RESSURECTION, 500u);
+                    return;
+                }
+                ResetTimer(ACTION_RESSURECTION, 3000u);
                 m_instance->SetData(TYPE_ZATH, IN_PROGRESS);
             }
         });

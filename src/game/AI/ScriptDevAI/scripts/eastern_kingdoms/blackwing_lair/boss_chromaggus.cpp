@@ -102,7 +102,8 @@ struct boss_chromaggusAI : public CombatAI
             {
                 if (m_creature->GetHealthPercent() < 20.0f)
                 {
-                    DoCastSpellIfCan(nullptr, SPELL_ENRAGE);
+                    if (DoCastSpellIfCan(nullptr, SPELL_ENRAGE) != CAST_OK)
+                        return;
                     DoScriptText(EMOTE_GENERIC_FRENZY, m_creature);
                     SetActionReadyStatus(action, false);
                 }
