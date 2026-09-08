@@ -912,7 +912,9 @@ bool TerrainInfo::GetAreaInfo(float x, float y, float z, uint32& flags, int32& a
     if (m_vmgr->getAreaInfo(GetMapId(), x, y, vmap_z, flags, adtId, rootId, groupId))
     {
         // check if there's terrain between player height and object height
-        if (GridMap* gmap = const_cast<TerrainInfo*>(this)->GetGrid(x, y))
+        // This height check needs only the .map grid. Area queries can run
+        // before a map's navigation data is initialized (for example bot startup).
+        if (GridMap* gmap = const_cast<TerrainInfo*>(this)->GetGrid(x, y, true))
         {
             float _mapheight = gmap->getHeight(x, y);
             // z + 2.0f condition taken from GetHeightStatic(), not sure if it's such a great choice...

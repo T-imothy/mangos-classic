@@ -25,3 +25,9 @@ Production-body tests cover real Windows sharing violations, continued writes, p
 A local benchmark using exported production spawn/event IDs produced identical membership answers for 113,886 Classic, 181,118 TBC and 258,372 Wrath spawns. Event-list scan times were approximately 0.83/2.78/5.20 seconds; index construction plus lookup took approximately 0.002/0.003/0.004 seconds. These are local lookup timings, not production startup-time measurements.
 
 Deploy matching mangosd.exe/PDB and realmd.exe/PDB. Restart both authentication and world processes to release the old authentication process's log handles. No database migration or configuration change is required; existing append, daily/size rotation and retention settings remain in effect. Production startup timings must be checked after the restart.
+
+## Startup regression correction
+
+The corrected bot vmap path exposed a terrain-area lookup that requested navigation tiles before map navigation data existed. TBC aborted in MMapManager::loadMap during object-location loading. GetAreaInfo now requests only the map grid used for its terrain-height test, matching the existing map-only fallback in GetAreaFlag. Vmap area selection, height filtering, event behavior, and navigation loading for movement remain unchanged. The same correction applies to Classic, TBC and Wrath.
+
+The added regression test executes the actual GetAreaInfo body with navigation deliberately uninitialized and proves the old call fails while the corrected call succeeds. It also checks terrain occlusion and missing area/grid cases. Production startup acceptance must still be verified on restart.
