@@ -180,6 +180,7 @@ class GroupLootRoll
 
         bool TryToStart(Loot& loot, uint32 itemSlot);
         bool PlayerVote(Player* player, RollVote vote);
+        RollVoteMask GetVoteMaskFor(Player* player) const;
         bool UpdateRoll();
 
     private:
