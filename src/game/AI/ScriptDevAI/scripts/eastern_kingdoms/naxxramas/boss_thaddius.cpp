@@ -94,6 +94,14 @@ enum ThaddiusActions
     THADDIUS_ACTION_MAX,
 };
 
+static void ClearThaddiusPlayerCharges(Unit* target)
+{
+    if (!target || target->GetTypeId() != TYPEID_PLAYER) return;
+    for (uint32 id : {uint32(SPELL_POSITIVE_CHARGE), uint32(SPELL_NEGATIVE_CHARGE),
+        uint32(SPELL_POSITIVE_CHARGE_BUFF), uint32(SPELL_NEGATIVE_CHARGE_BUFF)})
+        target->RemoveAurasDueToSpell(id);
+}
+
 struct boss_thaddiusAI : public BossAI
 {
     boss_thaddiusAI(Creature* creature) : BossAI(creature, THADDIUS_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
@@ -106,8 +114,18 @@ struct boss_thaddiusAI : public BossAI
 
     ScriptedInstance* m_instance;
 
+    void ClearPlayerCharges()
+    {
+        // Polarity is self-cast by each player. Caster-only removal using the
+        // boss GUID would therefore miss it, including on dead/out-of-range players.
+        for (auto const& reference : m_creature->GetMap()->GetPlayers())
+            if (Player* player = reference.getSource())
+                ClearThaddiusPlayerCharges(player);
+    }
+
     void Reset() override
     {
+        ClearPlayerCharges();
         BossAI::Reset();
         m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         m_creature->SetImmuneToPlayer(true);
@@ -124,6 +142,7 @@ struct boss_thaddiusAI : public BossAI
 
     void JustReachedHome() override
     {
+        ClearPlayerCharges();
         BossAI::JustReachedHome();
         DoCastSpellIfCan(nullptr, SPELL_THADIUS_SPAWN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
     }
@@ -131,6 +150,7 @@ struct boss_thaddiusAI : public BossAI
     void JustDied(Unit* killer) override
     {
         BossAI::JustDied(killer);
+        ClearPlayerCharges();
         if (m_instance)
         {
             // Force Despawn of Adds

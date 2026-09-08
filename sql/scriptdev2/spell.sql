@@ -96,7 +96,7 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (23253,'spell_terrordale_haunting_spirit3'),
 (23441,'spell_gadgetzan_transporter'),
 (23442,'spell_everlook_transporter'),
-(24228,'spell_arlokk_vanish'),
+(24223,'spell_arlokk_vanish'),
 (24314,'spell_threatening_gaze'),
 (24335,'spell_wyvern_sting_aura'),
 (24342,'spell_despawn_chained_spirits'),
@@ -632,3 +632,11 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (26505, 'spell_lunar_festival_cluster_big_u'),
 (26510, 'spell_lunar_festival_cluster_big_u'),
 (26515, 'spell_lunar_festival_cluster_big_u');
+
+-- C'Thun tentacle birth and portal dispatch.
+INSERT IGNORE INTO spell_scripts (Id,ScriptName) VALUES
+(26586,'spell_birth_tentacles'),
+(26140,'spell_summon_hook_tentacle'),
+(26216,'spell_summon_giant_hook_tentacles'),
+(26150,'spell_summon_eye_tentacle'),
+(26768,'spell_summon_giant_eye_tentacles');
