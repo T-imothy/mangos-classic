@@ -2894,6 +2894,8 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
 
 void Map::SendObjectUpdates()
 {
+    const uint32 updateStart = WorldTimer::getMSTime();
+    uint32 deliveryMs = 0;
     std::set<Object*> objectsToUpdate;
     {
         std::lock_guard<std::mutex> guard(m_updateObjectLock);
@@ -2942,21 +2944,29 @@ void Map::SendObjectUpdates()
         for (Object* object : objectsToUpdate)
             object->BuildUpdateData(sequentialUpdates);
 
-    auto sendUpdates = [](UpdateDataMapType& updates)
+    const uint32 buildMs = WorldTimer::getMSTimeDiff(updateStart, WorldTimer::getMSTime());
+    auto sendUpdates = [&deliveryMs](UpdateDataMapType& updates)
     {
+        const uint32 sendStart = WorldTimer::getMSTime();
         for (auto& updatePlayer : updates)
-        {
-            for (size_t i = 0; i < updatePlayer.second.GetPacketCount(); ++i)
-            {
-                WorldPacket packet = updatePlayer.second.BuildPacket(i);
-                updatePlayer.first->GetSession()->SendPacket(packet);
-            }
-        }
+            updatePlayer.second.SendData(*updatePlayer.first->GetSession());
+        deliveryMs += WorldTimer::getMSTimeDiff(sendStart, WorldTimer::getMSTime());
     };
 
     sendUpdates(sequentialUpdates);
     for (auto& updates : parallelUpdates)
         sendUpdates(*updates);
+    const uint32 finished = WorldTimer::getMSTime();
+    const uint32 totalMs = WorldTimer::getMSTimeDiff(updateStart, finished);
+    static thread_local uint32 lastDetail = 0;
+    if (sWorld.getConfig(CONFIG_BOOL_PERFORMANCE_LOG_ENABLED) && totalMs >= 50 &&
+        WorldTimer::getMSTimeDiff(lastDetail, finished) >= 5000)
+    {
+        lastDetail = finished;
+        sLog.outPerformance("SLOW_OBJECT_UPDATES map=%u instance=%u total=%u ms objects=%u build_wait=%u ms visibility=%u ms delivery=%u ms recipients=%u",
+            GetId(), GetInstanceId(), totalMs, static_cast<uint32>(objectsToUpdate.size()), buildMs,
+            totalMs >= buildMs + deliveryMs ? totalMs - buildMs - deliveryMs : 0, deliveryMs, static_cast<uint32>(sequentialUpdates.size()));
+    }
 }
 
 Creature* Map::GetCreature(uint32 dbguid) const

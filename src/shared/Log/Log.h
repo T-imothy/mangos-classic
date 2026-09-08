@@ -23,6 +23,7 @@
 #include "Policies/Singleton.h"
 
 #include <mutex>
+#include <map>
 
 class Config;
 class ByteBuffer;
@@ -202,6 +203,9 @@ class Log : public MaNGOS::Singleton<Log, MaNGOS::ClassLevelLockable<Log, std::m
     private:
         FILE* openLogFile(char const* configFileName, char const* configTimeStampFlag, char const* mode);
         FILE* openGmlogPerAccount(uint32 account);
+        void RotateLogFilesIfNeeded();
+        std::map<FILE*, std::pair<std::string, int>> m_rotationFiles;
+        time_t m_nextRotationCheck = 0;
 
         FILE* raLogfile;
         FILE* logfile;

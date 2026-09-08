@@ -273,7 +273,6 @@ void Log::Initialize()
     scriptErrLogFile = openLogFile("SD2ErrorLogFile", nullptr, "a");
     raLogfile = openLogFile("RaLogFile", nullptr, "a");
     worldLogfile = openLogFile("WorldLogFile", "WorldLogTimestamp", "a");
-    scriptErrLogFile = openLogFile("SD2ErrorLogFile", nullptr, "a");
     customLogFile = openLogFile("CustomLogFile", nullptr, "a");
     performanceLogFile = openLogFile("PerformanceLogFile", "PerformanceLogTimestamp", "a");
 
@@ -362,7 +361,77 @@ FILE* Log::openLogFile(char const* configFileName, char const* configTimeStampFl
         }
     }
 
-    return fopen(fullPath.c_str(), mode);
+    FILE* stream = fopen(fullPath.c_str(), mode);
+    if (stream)
+    {
+        const time_t now = time(nullptr);
+        const std::tm local = *std::localtime(&now);
+        m_rotationFiles[stream] = std::make_pair(fullPath, local.tm_year * 366 + local.tm_yday);
+    }
+    return stream;
+}
+
+void Log::RotateLogFilesIfNeeded()
+{
+    // Called with m_worldLogMtx held: a writer must never use a closed stream.
+    const time_t now = time(nullptr);
+    if (now < m_nextRotationCheck || !sConfig.GetBoolDefault("LogRotation.Enabled", true))
+        return;
+    m_nextRotationCheck = now + 5;
+    const std::tm local = *std::localtime(&now);
+    const int day = local.tm_year * 366 + local.tm_yday;
+    const uintmax_t limit = static_cast<uintmax_t>(std::max<int32>(1, sConfig.GetIntDefault("LogRotation.MaxFileSizeMB", 100))) * 1024u * 1024u;
+    FILE** streams[] = { &logfile, &gmLogfile, &charLogfile, &dberLogfile, &eventAiErLogfile,
+        &scriptErrLogFile, &raLogfile, &worldLogfile, &customLogFile, &performanceLogFile };
+    for (FILE** stream : streams)
+    {
+        auto found = m_rotationFiles.find(*stream);
+        if (!*stream || found == m_rotationFiles.end())
+            continue;
+        const auto state = found->second;
+        try
+        {
+            MaNGOS::Filesystem::path path(state.first);
+            if (MaNGOS::Filesystem::file_size(path) < limit &&
+                (!sConfig.GetBoolDefault("LogRotation.Daily", true) || state.second == day))
+                continue;
+            fflush(*stream);
+            fclose(*stream);
+            m_rotationFiles.erase(found);
+            *stream = nullptr;
+            try
+            {
+                MaNGOS::Filesystem::rename(path, MaNGOS::Filesystem::path(state.first + "." + GetTimestampStr() + ".archive"));
+            }
+            catch (...)
+            {
+                *stream = fopen(state.first.c_str(), "a");
+                if (*stream) m_rotationFiles[*stream] = state;
+                throw;
+            }
+            *stream = fopen(state.first.c_str(), "a");
+            if (*stream)
+                m_rotationFiles[*stream] = std::make_pair(state.first, day);
+            else
+                std::fprintf(stderr, "Unable to reopen log after rotation: %s\n", state.first.c_str());
+
+            const int32 retentionDays = std::max<int32>(1, sConfig.GetIntDefault("LogRotation.RetentionDays", 14));
+            const time_t cutoff = now - static_cast<time_t>(retentionDays) * 24 * 60 * 60;
+            const std::string prefix = path.filename().string() + ".";
+            for (MaNGOS::Filesystem::directory_iterator it(path.parent_path()), end; it != end; ++it)
+            {
+                const std::string name = it->path().filename().string();
+                if (MaNGOS::Filesystem::is_regular_file(it->path()) && name.compare(0, prefix.size(), prefix) == 0 &&
+                    name.size() >= 8 && name.compare(name.size() - 8, 8, ".archive") == 0 &&
+                    MaNGOS::Filesystem::last_write_time(it->path()) < cutoff)
+                    MaNGOS::Filesystem::remove(it->path());
+            }
+        }
+        catch (std::exception const& error)
+        {
+            std::fprintf(stderr, "Runtime log rotation failed for %s: %s\n", state.first.c_str(), error.what());
+        }
+    }
 }
 
 FILE* Log::openGmlogPerAccount(uint32 account)
@@ -421,6 +490,7 @@ std::string Log::GetTimestampStr()
 void Log::outString()
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_includeTime)
         outTime();
     printf("\n");
@@ -440,6 +510,7 @@ void Log::outString(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (m_colored)
         SetColor(true, m_colors[LogNormal]);
@@ -479,6 +550,7 @@ void Log::outError(const char* err, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (m_colored)
         SetColor(false, m_colors[LogError]);
@@ -515,6 +587,7 @@ void Log::outError(const char* err, ...)
 void Log::outErrorDb()
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (m_includeTime)
         outTime();
@@ -544,6 +617,7 @@ void Log::outErrorDb(const char* err, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (m_colored)
         SetColor(false, m_colors[LogError]);
@@ -594,6 +668,7 @@ void Log::outErrorDb(const char* err, ...)
 void Log::outErrorEventAI()
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (m_includeTime)
         outTime();
@@ -623,6 +698,7 @@ void Log::outErrorEventAI(const char* err, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_colored)
         SetColor(false, m_colors[LogError]);
 
@@ -675,6 +751,7 @@ void Log::outBasic(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_logLevel >= LOG_LVL_BASIC)
     {
         if (m_colored)
@@ -714,6 +791,7 @@ void Log::outDetail(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_logLevel >= LOG_LVL_DETAIL)
     {
         if (m_colored)
@@ -755,6 +833,7 @@ void Log::outDebug(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_logLevel >= LOG_LVL_DEBUG)
     {
         if (m_colored)
@@ -796,6 +875,7 @@ void Log::outCommand(uint32 account, const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_logLevel >= LOG_LVL_DETAIL)
     {
         if (m_colored)
@@ -859,6 +939,7 @@ void Log::outChar(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (charLogfile)
     {
         va_list ap;
@@ -874,6 +955,7 @@ void Log::outChar(const char* str, ...)
 void Log::outErrorScriptLib()
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_includeTime)
         outTime();
 
@@ -905,6 +987,7 @@ void Log::outErrorScriptLib(const char* err, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (m_colored)
         SetColor(false, m_colors[LogError]);
 
@@ -960,6 +1043,9 @@ void Log::outWorldPacketDump(const char* socket, uint32 opcode, char const* opco
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
+    if (!worldLogfile)
+        return;
 
     outTimestamp(worldLogfile);
 
@@ -983,6 +1069,7 @@ void Log::outWorldPacketDump(const char* socket, uint32 opcode, char const* opco
 void Log::outCharDump(const char* str, uint32 account_id, uint32 guid, const char* name)
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
 
     if (charLogfile)
     {
@@ -997,6 +1084,7 @@ void Log::outRALog(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (raLogfile)
     {
         va_list ap;
@@ -1017,6 +1105,7 @@ void Log::outCustomLog(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (customLogFile)
     {
         va_list ap;
@@ -1037,6 +1126,7 @@ void Log::outPerformance(const char* str, ...)
         return;
 
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (performanceLogFile)
     {
         va_list ap;
@@ -1074,6 +1164,8 @@ void Log::WaitBeforeContinueIfNeed()
 
 void Log::setScriptLibraryErrorFile(char const* fname, char const* libName)
 {
+    std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    m_rotationFiles.erase(scriptErrLogFile);
     m_scriptLibName = libName;
 
     if (scriptErrLogFile)
@@ -1088,6 +1180,12 @@ void Log::setScriptLibraryErrorFile(char const* fname, char const* libName)
     std::string fileName = m_logsDir;
     fileName.append(fname);
     scriptErrLogFile = fopen(fileName.c_str(), "a");
+    if (scriptErrLogFile)
+    {
+        const time_t now = time(nullptr);
+        const std::tm local = *std::localtime(&now);
+        m_rotationFiles[scriptErrLogFile] = std::make_pair(fileName, local.tm_year * 366 + local.tm_yday);
+    }
 }
 
 void outstring_log()
@@ -1187,6 +1285,7 @@ void script_error_log(const char* str, ...)
 void Log::traceLog()
 {
     std::lock_guard<std::mutex> guard(m_worldLogMtx);
+    RotateLogFilesIfNeeded();
     if (customLogFile)
     {
         fprintf(customLogFile, "%s\n", GetTraceLog().data());

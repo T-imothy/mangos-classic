@@ -1477,7 +1477,7 @@ SpellCastResult Unit::CastSpell(Unit* Victim, uint32 spellId, uint32 triggeredFl
         if (triggeredByAura)
             sLog.outError("CastSpell: unknown spell id %i by caster: %s triggered by aura %u (eff %u)", spellId, GetGuidStr().c_str(), triggeredByAura->GetId(), triggeredByAura->GetEffIndex());
         else
-            sLog.outError("CastSpell: unknown spell id %i by caster: %s", spellId, GetGuidStr().c_str());
+            sLog.outError("CastSpell: unknown spell id %i by caster: %s item=%u parent_spell=%u flags=%u", spellId, GetGuidStr().c_str(), castItem ? castItem->GetEntry() : 0, triggeredBy ? triggeredBy->Id : 0, triggeredFlags);
         return SPELL_NOT_FOUND;
     }
 
@@ -1723,7 +1723,7 @@ SpellCastResult Unit::CastSpell(SpellCastArgs& args, uint32 spellId, uint32 trig
         if (triggeredByAura)
             sLog.outError("CastSpell: unknown spell id %i by caster: %s triggered by aura %u (eff %u)", spellId, GetGuidStr().c_str(), triggeredByAura->GetId(), triggeredByAura->GetEffIndex());
         else
-            sLog.outError("CastSpell: unknown spell id %i by caster: %s", spellId, GetGuidStr().c_str());
+            sLog.outError("CastSpell: unknown spell id %i by caster: %s item=%u parent_spell=%u flags=%u", spellId, GetGuidStr().c_str(), castItem ? castItem->GetEntry() : 0, triggeredBy ? triggeredBy->Id : 0, triggeredFlags);
         return SPELL_NOT_FOUND;
     }
 
@@ -5871,8 +5871,9 @@ void Unit::RemoveGameObject(uint32 spellid, bool del)
 
 void Unit::RemoveAllGameObjects()
 {
-    // wild summoned GOs - only remove references, do not remove GOs
-    m_gameObj.clear();
+    // Owned objects must lose their owner before the unit leaves the map.
+    // Wild summons have independent lifetimes and only lose tracking here.
+    RemoveGameObject(uint32(0), true);
     m_wildGameObjs.clear();
 }
 
