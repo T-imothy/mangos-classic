@@ -280,11 +280,7 @@ struct boss_majordomoAI : public CombatAI
                 ++m_speechStage;
                 break;
             case 4:
-                if (DoCastSpellIfCan(m_creature, SPELL_TELEPORT_SELF) != CAST_OK)
-                {
-                    timer = 500;
-                    break;
-                }
+                DoCastSpellIfCan(m_creature, SPELL_TELEPORT_SELF);
                 // TODO - when should they be unsummoned?
                 // TODO - also unclear how this should be handled, as of range issues
                 timer = 900;
@@ -329,15 +325,9 @@ struct boss_majordomoAI : public CombatAI
                 break;
             case 13:
                 // Summon Ragnaros and make sure it faces Majordomo Executus
-                if (!m_creature->GetMap()->GetCreature(m_ragnarosGuid))
-                {
-                    if (!m_instance || !m_instance->GetSingleGameObjectFromStorage(GO_LAVA_STEAM) ||
-                        !m_creature->SummonCreature(NPC_RAGNAROS, 838.3082f, -831.4665f, -232.1853f, 2.199115f, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, 2 * HOUR * IN_MILLISECONDS))
-                    {
-                        timer = 500;
-                        break;
-                    }
-                }
+                if (m_instance)
+                    if (GameObject* pGo = m_instance->GetSingleGameObjectFromStorage(GO_LAVA_STEAM))
+                        m_creature->SummonCreature(NPC_RAGNAROS, 838.3082f, -831.4665f, -232.1853f, 2.199115f, TEMPSPAWN_TIMED_OOC_OR_DEAD_DESPAWN, 2 * HOUR * IN_MILLISECONDS);
                 ++m_speechStage;
                 timer = 8700;
                 break;
@@ -363,18 +353,7 @@ struct boss_majordomoAI : public CombatAI
                 break;
             case 17:
                 if (Creature* ragnaros = m_creature->GetMap()->GetCreature(m_ragnarosGuid))
-                {
-                    if (ragnaros->CastSpell(m_creature, SPELL_ELEMENTAL_FIRE, TRIGGERED_NONE) != SPELL_CAST_OK)
-                    {
-                        timer = 500;
-                        break;
-                    }
-                }
-                else
-                {
-                    timer = 500;
-                    break;
-                }
+                    ragnaros->CastSpell(m_creature, SPELL_ELEMENTAL_FIRE, TRIGGERED_NONE);
                 // Rest of summoning speech is handled by Ragnaros, as Majordomo will be dead
                 m_speechStage = 0;
                 break;

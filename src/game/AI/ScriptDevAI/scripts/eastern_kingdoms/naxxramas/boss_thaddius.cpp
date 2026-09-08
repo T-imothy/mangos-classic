@@ -94,14 +94,6 @@ enum ThaddiusActions
     THADDIUS_ACTION_MAX,
 };
 
-static void ClearThaddiusPlayerCharges(Unit* target)
-{
-    if (!target || target->GetTypeId() != TYPEID_PLAYER) return;
-    for (uint32 id : {uint32(SPELL_POSITIVE_CHARGE), uint32(SPELL_NEGATIVE_CHARGE),
-        uint32(SPELL_POSITIVE_CHARGE_BUFF), uint32(SPELL_NEGATIVE_CHARGE_BUFF)})
-        target->RemoveAurasDueToSpell(id);
-}
-
 struct boss_thaddiusAI : public BossAI
 {
     boss_thaddiusAI(Creature* creature) : BossAI(creature, THADDIUS_ACTION_MAX), m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
@@ -114,18 +106,8 @@ struct boss_thaddiusAI : public BossAI
 
     ScriptedInstance* m_instance;
 
-    void ClearPlayerCharges()
-    {
-        // Polarity is self-cast by each player. Caster-only removal using the
-        // boss GUID would therefore miss it, including on dead/out-of-range players.
-        for (auto const& reference : m_creature->GetMap()->GetPlayers())
-            if (Player* player = reference.getSource())
-                ClearThaddiusPlayerCharges(player);
-    }
-
     void Reset() override
     {
-        ClearPlayerCharges();
         BossAI::Reset();
         m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
         m_creature->SetImmuneToPlayer(true);
@@ -142,15 +124,13 @@ struct boss_thaddiusAI : public BossAI
 
     void JustReachedHome() override
     {
-        ClearPlayerCharges();
         BossAI::JustReachedHome();
         DoCastSpellIfCan(nullptr, SPELL_THADIUS_SPAWN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
     }
 
     void JustDied(Unit* killer) override
     {
-        BossAI::JustDied(killer);
-        ClearPlayerCharges();
+        BossAI::Aggro(killer);
         if (m_instance)
         {
             // Force Despawn of Adds
@@ -232,8 +212,6 @@ struct boss_thaddiusAddsAI : public BossAI
     // For Stalagg returns feugen, for Feugen returns stalagg
     Creature* GetOtherAdd() const
     {
-        if (!m_instance)
-            return nullptr;
         switch (m_creature->GetEntry())
         {
             case NPC_FEUGEN:  return m_instance->GetSingleCreatureFromStorage(NPC_STALAGG);
@@ -296,9 +274,7 @@ struct boss_thaddiusAddsAI : public BossAI
         m_creature->SetStandState(UNIT_STAND_STATE_DEAD);
         SetCombatScriptStatus(true);
 
-        // This is a reversible phase-one fake death, not encounter completion.
-        // BossAI::JustDied would mark TYPE_THADDIUS DONE and unlock the wing.
-        DoBroadcastText(m_creature->GetEntry() == NPC_STALAGG ? SAY_STAL_DEATH : SAY_FEUG_DEATH, m_creature, attacker);
+        JustDied(attacker);                                  // Texts
         ResetTimer(THADDIUS_ADD_REVIVE, 10s);
     }
 };

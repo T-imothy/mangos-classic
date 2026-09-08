@@ -92,7 +92,7 @@ struct boss_ragnarosAI : public CombatAI
 
     instance_molten_core* m_instance;
 
-    GuidSet m_activeSons;
+    uint32 m_uiAddCount;
     uint32 m_phase;
     int32 m_rangeCheckState;
 
@@ -105,7 +105,7 @@ struct boss_ragnarosAI : public CombatAI
     void Reset() override
     {
         CombatAI::Reset();
-        m_activeSons.clear();
+        m_uiAddCount = 0;
         m_phase = PHASE_EMERGED;
         m_rangeCheckState       = -1;
 
@@ -156,16 +156,20 @@ struct boss_ragnarosAI : public CombatAI
     void SummonedCreatureJustDied(Creature* summoned) override
     {
         // If all Sons of Flame are dead, trigger emerge
-        if (summoned->GetEntry() == NPC_SON_OF_FLAME &&
-            m_activeSons.erase(summoned->GetObjectGuid()) && m_activeSons.empty() && m_phase == PHASE_SUBMERGED)
-            ReduceTimer(RAGNAROS_PHASE_TRANSITION, 1000);
+        if (summoned->GetEntry() == NPC_SON_OF_FLAME)
+        {
+            m_uiAddCount--;
+
+            // If last add killed then emerge soonish
+            if (m_uiAddCount == 0)
+                ReduceTimer(RAGNAROS_PHASE_TRANSITION, 1000);
+        }
     }
 
     void JustSummoned(Creature* summoned) override
     {
         if (summoned->GetEntry() == NPC_SON_OF_FLAME)
         {
-            m_activeSons.insert(summoned->GetObjectGuid());
             summoned->AI()->DoCastSpellIfCan(nullptr, SPELL_DOUBLE_ATTACK, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
             summoned->AI()->DoCastSpellIfCan(nullptr, SPELL_LAVA_SHIELD, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
             summoned->SetInCombatWithZone();
@@ -214,15 +218,6 @@ struct boss_ragnarosAI : public CombatAI
         {
             case PHASE_EMERGED:
             {
-                // Native 21108 synchronously dispatches the eight summon spells.
-                // Track the actual wave and retain the phase if its cast is rejected.
-                m_activeSons.clear();
-                if (DoCastSpellIfCan(nullptr, SPELL_SUMMON_SONS_FLAME) != CAST_OK)
-                {
-                    ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 500);
-                    return;
-                }
-
                 // Submerge and attack again after 90 secs
                 DoCastSpellIfCan(m_creature, SPELL_RAGNA_SUBMERGE_VISUAL, CAST_TRIGGERED);
                 DoCastSpellIfCan(nullptr, SPELL_SUBMERGE_EFFECT, CAST_TRIGGERED);
@@ -232,6 +227,10 @@ struct boss_ragnarosAI : public CombatAI
                 // Say dependend if first time or not
                 DoScriptText(!m_bHasSubmergedOnce ? SAY_REINFORCEMENTS_1 : SAY_REINFORCEMENTS_2, m_creature);
                 m_bHasSubmergedOnce = true;
+
+                // Summon 8 elementals around the boss
+                if (DoCastSpellIfCan(nullptr, SPELL_SUMMON_SONS_FLAME) == CAST_OK)
+                    m_uiAddCount = NB_ADDS_IN_SUBMERGE;
 
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 3000);
                 m_phase = PHASE_SUBMERGING;
@@ -244,13 +243,8 @@ struct boss_ragnarosAI : public CombatAI
             }
             case PHASE_SUBMERGING:
             {
-                if (DoCastSpellIfCan(nullptr, SPELL_RAGNA_SUBMERGE, CAST_TRIGGERED) != CAST_OK)
-                {
-                    ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 500);
-                    return;
-                }
-                // The whole wave can die during the initial three-second animation.
-                ResetCombatAction(RAGNAROS_PHASE_TRANSITION, m_activeSons.empty() ? 1000 : 90 * IN_MILLISECONDS);
+                DoCastSpellIfCan(nullptr, SPELL_RAGNA_SUBMERGE, CAST_TRIGGERED);
+                ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 90 * IN_MILLISECONDS);
                 m_phase = PHASE_SUBMERGED;
                 break;
             }
@@ -267,11 +261,7 @@ struct boss_ragnarosAI : public CombatAI
             case PHASE_EMERGING:
             {
                 m_creature->SetStandState(UNIT_STAND_STATE_STAND);
-                if (DoCastSpellIfCan(m_creature, SPELL_RAGNA_EMERGE) != CAST_OK)
-                {
-                    ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 500);
-                    return;
-                }
+                DoCastSpellIfCan(m_creature, SPELL_RAGNA_EMERGE);
                 m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
                 m_phase = PHASE_EMERGED;
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 3 * MINUTE * IN_MILLISECONDS);

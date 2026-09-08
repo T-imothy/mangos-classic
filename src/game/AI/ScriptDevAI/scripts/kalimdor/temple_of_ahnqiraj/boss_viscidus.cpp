@@ -145,7 +145,6 @@ struct boss_viscidusAI : public CombatAI
         m_phase    = PHASE_NORMAL;
         m_hitCount = 0;
         m_aliveGlobs = 0;
-        m_lGlobesGuidList.clear();
 
         SetDeathPrevention(true);
     }
@@ -197,10 +196,8 @@ struct boss_viscidusAI : public CombatAI
     {
         if (summoned->GetEntry() == NPC_GLOB_OF_VISCIDUS)
         {
-            auto glob = std::find(m_lGlobesGuidList.begin(), m_lGlobesGuidList.end(), summoned->GetObjectGuid());
-            if (glob == m_lGlobesGuidList.end()) return;
-            m_lGlobesGuidList.erase(glob);
-            if (m_aliveGlobs) --m_aliveGlobs;
+            m_lGlobesGuidList.remove(summoned->GetObjectGuid());
+            --m_aliveGlobs;
             // Start rejoin phase for Viscidus if all Globs are dead/have reached center but check that phase is not already started due to some hooks being called twice
             if (m_lGlobesGuidList.empty() && m_phase != PHASE_REJOIN)
                 SetPhase(PHASE_REJOIN);
@@ -212,9 +209,7 @@ struct boss_viscidusAI : public CombatAI
         if (summoned->GetEntry() != NPC_GLOB_OF_VISCIDUS || motionType != POINT_MOTION_TYPE || !pointId)
             return;
 
-        auto glob = std::find(m_lGlobesGuidList.begin(), m_lGlobesGuidList.end(), summoned->GetObjectGuid());
-        if (glob == m_lGlobesGuidList.end()) return;
-        m_lGlobesGuidList.erase(glob);
+        m_lGlobesGuidList.remove(summoned->GetObjectGuid());
         summoned->CastSpell(m_creature, SPELL_REJOIN_VISCIDUS, TRIGGERED_OLD_TRIGGERED);
         summoned->ForcedDespawn(1000);
 
@@ -383,10 +378,9 @@ struct boss_viscidusAI : public CombatAI
     {
         // At this point, Viscidus should play an emote like dying or exploding but this does not appear clearly in sniff (maybe a spell visual or stand state change?)
 
-        // Initialize this wave before summoning: triggered summons can invoke
-        // JustSummoned immediately and must not have their tracking erased.
+        // Summon globs
+        DoCastSpellIfCan(m_creature, SPELL_SUMMON_GLOBS, CAST_TRIGGERED);
         m_aliveGlobs = 0;
-        m_lGlobesGuidList.clear();
 
         // Make invisible and stun self
         DoCastSpellIfCan(nullptr, SPELL_INVIS_SELF, CAST_TRIGGERED);
@@ -397,7 +391,9 @@ struct boss_viscidusAI : public CombatAI
         m_hitCount = 0;
         m_creature->RemoveAurasDueToSpell(SPELL_MEMBRANE_VISCIDUS);
         m_creature->RemoveAurasDueToSpell(SPELL_VISCIDUS_WEAKNESS);
-        DoCastSpellIfCan(m_creature, SPELL_SUMMON_GLOBS, CAST_TRIGGERED);
+        m_lGlobesGuidList.clear();
+
+        DoCastSpellIfCan(m_creature, SPELL_SUMMON_GLOBS, TRIGGERED_IGNORE_GCD);
     }
 
     void HandleRejoin()
@@ -492,7 +488,7 @@ struct ViscidusSummonGlobs : public SpellScript
             Unit* target = spell->GetUnitTarget();
             uint8 globeCount = floor(target->GetHealthPercent() / 5.0f);
 
-            for (uint8 i = 0; i <= globeCount && i < MAX_VISCIDUS_GLOBS; ++i)
+            for (uint8 i = 0; i <= globeCount; ++i)
             {
                 if (target->CastSpell(target, auiGlobSummonSpells[i], TRIGGERED_IGNORE_GCD) == SPELL_CAST_OK)
                     target->CastSpell(target, SPELL_VISCIDUS_SHRINKS_2, TRIGGERED_IGNORE_GCD);

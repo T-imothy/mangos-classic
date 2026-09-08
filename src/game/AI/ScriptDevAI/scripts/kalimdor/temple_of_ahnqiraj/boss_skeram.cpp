@@ -101,7 +101,6 @@ struct boss_skeramAI : public CombatAI
         m_teleportCounter        = 0;
 
         m_maxMeleeAllowed        = 0;
-        m_rangeCheckState        = -1;
     }
 
     void JustRespawned() override

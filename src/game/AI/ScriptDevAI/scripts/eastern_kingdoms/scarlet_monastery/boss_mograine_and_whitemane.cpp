@@ -422,16 +422,8 @@ struct boss_high_inquisitor_whitemaneAI : public CombatAI
 
     void HandleResurrection()
     {
-        if (!m_instance || !m_creature->IsAlive() || !m_creature->IsInCombat() ||
-            !GetCombatScriptStatus() || m_instance->GetData(TYPE_MOGRAINE_AND_WHITE_EVENT) != IN_PROGRESS)
-            return;
-
-        // Keep the scripted target on Mograine and retry a rejected cast.
-        if (DoCastSpellIfCan(nullptr, SPELL_SCARLETRESURRECTION) != CAST_OK)
-        {
-            ResetTimer(WHITEMANE_ACTION_SCARLET_RESURRECTION, 1000u);
-            return;
-        }
+        // spell has script target on Mograine
+        DoCastSpellIfCan(nullptr, SPELL_SCARLETRESURRECTION);
         DoScriptText(SAY_WH_RESSURECT, m_creature);
         ResetTimer(WHITEMANE_ACTION_SALUTE, 3400u);
         m_creature->GetMotionMaster()->Clear();
@@ -440,19 +432,6 @@ struct boss_high_inquisitor_whitemaneAI : public CombatAI
 
     void HandleResurrectionCombat()
     {
-        if (!m_instance || !m_creature->IsAlive() || !m_creature->IsInCombat() || !GetCombatScriptStatus())
-            return;
-
-        // Mograine's SpellHit sets SPECIAL only when resurrection actually lands.
-        // An accepted cast can still be interrupted before that callback.
-        if (m_instance->GetData(TYPE_MOGRAINE_AND_WHITE_EVENT) == IN_PROGRESS)
-        {
-            ResetTimer(WHITEMANE_ACTION_SCARLET_RESURRECTION, 1000u);
-            return;
-        }
-        if (m_instance->GetData(TYPE_MOGRAINE_AND_WHITE_EVENT) != SPECIAL)
-            return;
-
         ResetCombatAction(WHITEMANE_ACTION_HEAL, GetSubsequentActionTimer(WHITEMANE_ACTION_HEAL));
         ResetCombatAction(WHITEMANE_ACTION_POWERWORD_SHIELD, GetSubsequentActionTimer(WHITEMANE_ACTION_POWERWORD_SHIELD));
         ResetCombatAction(WHITEMANE_ACTION_HOLY_SMITE, GetSubsequentActionTimer(WHITEMANE_ACTION_HOLY_SMITE));
@@ -497,20 +476,20 @@ struct boss_high_inquisitor_whitemaneAI : public CombatAI
             {
                 if (m_creature->GetHealthPercent() <= 50.0f)
                 {
-                    Creature* mograine = m_instance ? m_instance->GetSingleCreatureFromStorage(NPC_MOGRAINE) : nullptr;
-                    if (!mograine || !mograine->IsAlive() ||
-                        DoCastSpellIfCan(nullptr, SPELL_DEEPSLEEP, CAST_INTERRUPT_PREVIOUS) != CAST_OK)
-                        return;
-
+                    DoCastSpellIfCan(nullptr, SPELL_DEEPSLEEP, CAST_INTERRUPT_PREVIOUS);
                     SetCombatMovement(false);
                     SetMeleeEnabled(false);
                     SetCombatScriptStatus(true);
                     m_creature->SetTarget(nullptr);
-                    m_creature->AttackStop(true);
-                    float fX, fY, fZ;
-                    mograine->GetContactPoint(m_creature, fX, fY, fZ, INTERACTION_DISTANCE / 2.f);
-                    m_creature->GetMotionMaster()->Clear();
-                    m_creature->GetMotionMaster()->MovePoint(2, fX, fY, fZ, FORCED_MOVEMENT_RUN);
+                    if (Creature* mograine = m_instance->GetSingleCreatureFromStorage(NPC_MOGRAINE))
+                    {
+                        SetCombatMovement(false);
+                        m_creature->AttackStop(true);
+                        float fX, fY, fZ;
+                        mograine->GetContactPoint(m_creature, fX, fY, fZ, INTERACTION_DISTANCE / 2.f);
+                        m_creature->GetMotionMaster()->Clear();
+                        m_creature->GetMotionMaster()->MovePoint(2, fX, fY, fZ, FORCED_MOVEMENT_RUN);
+                    }
                     DisableCombatAction(action);
                 }
                 return;
@@ -519,7 +498,7 @@ struct boss_high_inquisitor_whitemaneAI : public CombatAI
             {
                 if (!urand(0, 50))
                     if (Unit* target = m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, SPELL_DOMINATEMIND, SELECT_FLAG_PLAYER))
-                        if (DoCastSpellIfCan(target, SPELL_DOMINATEMIND) == CAST_OK)
+                        if (DoCastSpellIfCan(target, SPELL_DOMINATEMIND))
                             ResetCombatAction(action, urand(20000, 30000));
                 return;
             }

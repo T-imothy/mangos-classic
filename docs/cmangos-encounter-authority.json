@@ -1,0 +1,41 @@
+{
+  "upstream": "8ec338a1704e7dcb1c0213eb7ed58f9231ade40f",
+  "restored_files": [
+    "sql/scriptdev2/spell.sql",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/blackwing_lair/boss_chromaggus.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/molten_core/boss_majordomo_executus.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/molten_core/boss_ragnaros.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/naxxramas/boss_maexxna.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/naxxramas/boss_thaddius.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/scarlet_monastery/boss_mograine_and_whitemane.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/zulgurub/boss_renataki.cpp",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/zulgurub/boss_thekal.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/ruins_of_ahnqiraj/boss_ayamiss.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/ruins_of_ahnqiraj/boss_ossirian.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_bug_trio.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_cthun.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_ouro.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_sartura.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_skeram.cpp",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_viscidus.cpp"
+  ],
+  "sha256": {
+    "sql/scriptdev2/spell.sql": "4148e362388201e2f549c73c0f539f7bb1557063ca4829abdb74e16c18176583",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/blackwing_lair/boss_chromaggus.cpp": "31c530e387bb814de3d396518827fc38d0784dc7d41ed52cc8f61614f1e1fa03",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/molten_core/boss_majordomo_executus.cpp": "dd43950bc8b693ea763ca382cb93b7436982a4cb6c56947b79bd218c0c3d9fae",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/molten_core/boss_ragnaros.cpp": "b4dd1aa3c924d5a720c863e8a77b4e4b62ebb620e6fcd8b9d192154beb1296ea",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/naxxramas/boss_maexxna.cpp": "e42734b1e1a05f7f68c3a234e41aa98ab886e205964dd473e4463e95030ee202",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/naxxramas/boss_thaddius.cpp": "9c5f6a5daacbdce80dcef1e404a26cb998a2e14857e2445fe294f1bb75d8960f",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/scarlet_monastery/boss_mograine_and_whitemane.cpp": "1ed08b9640ff09605a96b0a5ec718824dbe281b22955428a4e7c4e2916bf43e4",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/zulgurub/boss_renataki.cpp": "251bd426386209ecc92009caaba35c3787802a6a207a272c9f31d141d92a94e8",
+    "src/game/AI/ScriptDevAI/scripts/eastern_kingdoms/zulgurub/boss_thekal.cpp": "86562fca0633a847a66dc0acd2505727428aa7d57a2af9ae8909e401e44ba24e",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/ruins_of_ahnqiraj/boss_ayamiss.cpp": "a1d1eb80c59baffab49ef756b0904e0e71d67f56b050ea20799ba5e5ea1e074c",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/ruins_of_ahnqiraj/boss_ossirian.cpp": "f309ff7be93b5582f8b47b836078aadc354ae8fb737f86a8da9817d7accec146",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_bug_trio.cpp": "cf1d8366a6c8ea3acc37e237eb5ab490443895062c2f5f65a8c37464e6add16b",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_cthun.cpp": "f95937d2da068b4fccb8bfc84a1d8b3e6c0b2aa5a50bea1bda4833f2036048dd",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_ouro.cpp": "f2a5d18794c6be182566af1f09ca725d23b9c5bf678c3c8dce12a1f5cd0f544a",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_sartura.cpp": "d749cbe2a8f945bb02f773150100796410e904ae364dae644c3e44828e70e05b",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_skeram.cpp": "9edddb7cfb8505ecc4ccdd42c56ce3625683f0616af6a0a0652102181c0e5c35",
+    "src/game/AI/ScriptDevAI/scripts/kalimdor/temple_of_ahnqiraj/boss_viscidus.cpp": "ee63ac6d738bd2d614a8b896caaf2cfd54b527f44b0e91ef3d2d5c2df55da483"
+  }
+}
