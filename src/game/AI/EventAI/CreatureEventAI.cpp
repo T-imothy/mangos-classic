@@ -1299,7 +1299,7 @@ bool CreatureEventAI::ProcessAction(CreatureEventAI_Action const& action, uint32
         }
         case ACTION_T_SET_RANGED_MODE:
         {
-            if (!m_mainSpellInfo)
+            if (!m_mainSpellInfo && action.rangedMode.type != TYPE_NONE && action.rangedMode.type != TYPE_NO_MELEE_MODE)
             {
                 sLog.outErrorDb("EventAI: Creature entry %u has ranged mode action but no main spell.", m_creature->GetEntry());
                 break;
