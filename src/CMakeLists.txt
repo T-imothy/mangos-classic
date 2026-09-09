@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "dced6771f9e270c31dd8b5230dc4c4cb38676952" # verified playerbots baseline release
+        GIT_TAG "c66e9de70dd2f848d588d5e1c9223644ba912acd" # verified playerbots baseline release
   )
 
   FetchContent_GetProperties(PlayerBots)
