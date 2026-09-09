@@ -411,6 +411,14 @@ Spawns.ZoneArea = 0
 #                 0 (Disabled)
 #
 #
+#    WhoList.ShowOnlineTotal
+#        Show all online characters (both factions, including bots) in the WHO total.
+#        Search filters still restrict the displayed names, not this total.
+#        AllowTwoSide.WhoList controls cross-faction names, including for GMs in this mode.
+#        Hidden characters contribute only to the aggregate; name visibility is unchanged.
+#        The displayed list retains its 49-name limit. MaxWhoListReturns does not cap this total.
+#        Default: 0 (native matching-result total)
+#
 #    MaxWhoListReturns
 #        Set the max number of players returned in the /who list and interface (0 means unlimited)
 #        Default:     49 - (stable)
@@ -513,6 +521,7 @@ Watchdog.BreadcrumbFile = "StallBreadcrumb.log"
 AddonChannel = 1
 CleanCharacterDB = 1
 MaxWhoListReturns = 49
+WhoList.ShowOnlineTotal = 0
 
 ###################################################################################################################
 # SERVER LOGGING
