@@ -2,7 +2,7 @@
 
 CMaNGOS authority: `8ec338a1704e7dcb1c0213eb7ed58f9231ade40f`.
 Incoming upstream commits: 0.
-Playerbots dependency: `7f45ddd8ae9fa8830f9231544ac2fae3126e92f5`.
+Playerbots dependency: `70fe52044e3613e52ab1a5bc8ad7346888177c29`.
 
 The native core was already current; only the Playerbots dependency advances.
 
