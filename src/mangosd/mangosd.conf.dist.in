@@ -2064,3 +2064,13 @@ Metric.Password = ""
 
 Dummy.Debug1 = 0
 Dummy.Debug2 = 0
+
+###################################################################################################################
+# Player dungeon travel (.tp; normal player commands must also be enabled).
+# Only the requesting player moves, to an approved destination for this expansion.
+# Existing CMaNGOS destinations may be inside or outside. Native entry rules apply.
+# Disabled by default. Set PlayerTravel.Enabled = 1 to enable for rank-0 players.
+# CooldownSeconds: seconds between successful initiations, clamped to 0..3600.
+# Reloading configuration applies to future requests; an initiated transfer may finish.
+PlayerTravel.Enabled = 0
+PlayerTravel.CooldownSeconds = 300
