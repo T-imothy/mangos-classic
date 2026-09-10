@@ -40,6 +40,40 @@ namespace
         PORTABLE_MAILBOX_LIFETIME_SECONDS = 600,
     };
 
+    struct ManTechPortableAuctioneerSpell : public SpellScript
+    {
+        SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
+        {
+            Item* item = spell->GetCastItem();
+            if (!item || item->GetEntry() != 65002)
+                return SPELL_CAST_OK;
+            WorldObject* caster = spell->GetTrueCaster();
+            if (!caster || caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld() ||
+                !ObjectMgr::GetCreatureTemplate(65002))
+                return SPELL_FAILED_NOT_HERE;
+            return SPELL_CAST_OK;
+        }
+
+        void OnCast(Spell* spell) const override
+        {
+            Item* item = spell->GetCastItem();
+            WorldObject* caster = spell->GetTrueCaster();
+            if (!item || item->GetEntry() != 65002 || !caster ||
+                caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld())
+                return;
+
+            Player* player = static_cast<Player*>(caster);
+            // Native auction routing uses the auctioneer's faction. Do not use
+            // the neutral template faction or the player's racial faction ID.
+            const uint32 faction = player->GetTeam() == ALLIANCE ? 12 : 29;
+            float x, y, z;
+            player->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE, 1.0f);
+            if (!player->SummonCreature(65002, x, y, z, player->GetOrientation(),
+                    TEMPSPAWN_TIMED_DESPAWN, 600000, false, false, 0, faction))
+                player->GetSession()->SendNotification("The portable auctioneer could not be summoned.");
+        }
+    };
+
     struct ManTechPortableMailboxSpell : public SpellScript
     {
         void OnCast(Spell* spell) const override
@@ -490,4 +524,5 @@ void AddSC_item_scripts()
     RegisterSpellScript<Area52Transporter>("spell_area52_transporter");
     RegisterSpellScript<LinkensBoomerang>("spell_linkens_boomerang");
     RegisterSpellScript<ManTechPortableMailboxSpell>("spell_mantech_portable_mailbox");
+    RegisterSpellScript<ManTechPortableAuctioneerSpell>("spell_mantech_portable_auctioneer");
 }

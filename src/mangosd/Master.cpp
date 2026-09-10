@@ -571,7 +571,7 @@ void Master::clearOnlineAccounts()
 
     // Portable utility cooldowns survive logout/relog but intentionally reset
     // when the entire world server restarts.
-    CharacterDatabase.Execute("DELETE FROM character_spell_cooldown WHERE ItemId IN (65000, 65001)");
+    CharacterDatabase.Execute("DELETE FROM character_spell_cooldown WHERE ItemId IN (65000, 65001, 65002)");
 }
 
 /// Handle termination signals

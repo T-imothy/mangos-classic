@@ -18246,6 +18246,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
     // login so players never need to delete client cache files manually.
     GetSession()->SendItemQuerySingleResponse(65000);
     GetSession()->SendItemQuerySingleResponse(65001);
+    GetSession()->SendItemQuerySingleResponse(65002);
 
     SendInitialSpells();
 
