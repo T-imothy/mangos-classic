@@ -25,6 +25,15 @@ add=map_source[map_source.index('bool DungeonMap::Add(Player* player)'):]
 add=add[:add.index('void DungeonMap::Update')]
 assert add.index('CanEnter(player)') < add.index('Map::Add(player);') < add.index('player->RecordDungeonTravelVisit();') < add.rindex('return true;')
 assert 'DELETE FROM character_dungeon_travel' in (root/'src/game/Entities/Player.cpp').read_text()
+player_source=(root/'src/game/Entities/Player.cpp').read_text()
+copy=player_source.index('"INSERT INTO account_dungeon_travel')
+delete=player_source.index('"DELETE FROM character_dungeon_travel')
+assert player_source.rfind('CharacterDatabase.BeginTransaction();',0,copy)>=0
+assert copy<delete<player_source.index('CharacterDatabase.CommitTransaction();',delete)
+assert 'DELETE FROM account_dungeon_travel' not in player_source
+assert 'DELETE FROM account_dungeon_travel' in (root/'src/game/Accounts/AccountMgr.cpp').read_text()
+assert 'PRIMARY KEY (account, destination)' in (root/'sql/custom/characters/20260909_02_account_dungeon_travel.sql').read_text()
+
 assert 'PRIMARY KEY (guid, destination)' in (root/'sql/custom/characters/20260909_01_player_dungeon_travel.sql').read_text()
 assert 'GetSelectedPlayer' not in source and 'SetSecurity' not in source and 'HandleGoHelper' not in source
 assert len([d for d in manifest['destinations'] if d['available']])==(32,57,80)[expansion]
@@ -62,12 +71,14 @@ struct Group{uint32 leader=1;bool IsLeader(uint32 guid){return guid==leader;}};
 struct Field{std::string value;std::string GetString(){return value;}};
 struct QueryResult{std::vector<Field> rows;size_t index=0;Field* Fetch(){return &rows[index];}bool NextRow(){return ++index<rows.size();}};
 struct Database{
- std::map<uint32,std::set<std::string>> persisted;unsigned reads=0,writes=0;bool readOK=true,writeOK=true;
+ std::map<uint32,std::set<std::string>> persisted,legacy;unsigned reads=0,writes=0;bool readOK=true,writeOK=true;
  std::unique_ptr<QueryResult> PQuery(const char* sql,...){assert(std::string(sql).find("UNION ALL SELECT ''")!=std::string::npos);++reads;
-  va_list args;va_start(args,sql);uint32 guid=va_arg(args,uint32);va_end(args);if(!readOK)return nullptr;
-  auto out=std::make_unique<QueryResult>();for(const auto& key:persisted[guid])out->rows.push_back({key});out->rows.push_back({""});return out;}
+  assert(std::string(sql).find("account_dungeon_travel WHERE account = %u")!=std::string::npos);
+  va_list args;va_start(args,sql);uint32 account=va_arg(args,uint32);
+  assert(va_arg(args,uint32)==account&&va_arg(args,uint32)==account);va_end(args);if(!readOK)return nullptr;
+  auto out=std::make_unique<QueryResult>();for(const auto& key:persisted[account])out->rows.push_back({key});for(const auto& key:legacy[account])out->rows.push_back({key});out->rows.push_back({""});return out;}
  bool DirectExecute(const char* sql){++writes;if(!writeOK)return false;std::string text=sql;
-  assert(text.find("INSERT IGNORE INTO character_dungeon_travel")==0);
+  assert(text.find("INSERT IGNORE INTO account_dungeon_travel")==0);
   std::regex row("\\(([0-9]+),'([a-z0-9_]+)',UNIX_TIMESTAMP\\(\\)\\)");
   auto begin=std::sregex_iterator(text.begin(),text.end(),row);assert(begin!=std::sregex_iterator{});
   for(auto it=begin;it!=std::sregex_iterator{};++it)persisted[std::stoul((*it)[1])].insert((*it)[2]);return true;}
@@ -75,7 +86,9 @@ struct Database{
 struct Player{
  bool world=true,transfer=false,alive=true,real=true,gm=false,combat=false,taxi=false,transport=false,arena=false,bg=false,charm=false,rooted=false,controlled=false,nativeSuccess=true;
  uint32 id=1,mapId=0,instance=0,level=80;float x=0,y=0,z=0;int team=0;unsigned teleports=0,lockChecks=0;
- bool m_dungeonTravelUnlocksLoaded=false;std::set<std::string> m_dungeonTravelUnlocks;
+ struct Identity{uint32 account=1;uint32 GetAccountId(){return account;}}session;
+ Identity* GetSession(){return &session;}
+ std::set<std::string> m_dungeonTravelUnlocks;
  bool LoadDungeonTravelUnlocks();bool HasDungeonTravelUnlock(const char* key)const{return m_dungeonTravelUnlocks.count(key)!=0;}void RecordDungeonTravelVisit();
  AreaLockStatus lock=AREA_LOCKSTATUS_OK;const AreaTrigger* lastEntry=nullptr;Group* group=nullptr;Map map;
  bool IsInWorld(){return world;}bool IsBeingTeleported(){return transfer;}bool IsAlive(){return alive;}bool isRealPlayer(){return real;}
@@ -99,7 +112,7 @@ void reset(){travel=PlayerTravel::Service{};messages.clear();fakeNow=100;sConfig
  for(const auto& d:PlayerTravel::Destinations)if(d.available)CharacterDatabase.persisted[1].insert(d.key);
  for(auto const& d:PlayerTravel::Destinations)if(d.available){sMapStore.maps[d.map].dungeon=d.map==d.instanceMap;
  if(d.entryTrigger)sObjectMgr.entries[d.entryTrigger]={d.instanceMap,1};}}
-std::string command(Player& p,std::string args,uint32 account=1){WorldSession session;session.account=account;session.player=&p;ChatHandler handler;handler.m_session=&session;
+std::string command(Player& p,std::string args,uint32 account=1){WorldSession session;session.account=account;p.session.account=account;session.player=&p;ChatHandler handler;handler.m_session=&session;
  auto n=messages.size();assert(handler.HandlePlayerTravelCommand(&args[0]));assert(messages.size()>n);return messages.back();}
 bool ends(std::string text,std::string suffix){return text.size()>=suffix.size()&&text.substr(text.size()-suffix.size())==suffix;}
 void arrive(Player& p){p.transfer=false;p.world=true;}
@@ -184,7 +197,7 @@ int main(){
  // Persistent first-entry unlocks: no history means locked and no teleport.
  reset();p={};CharacterDatabase.persisted.clear();
  assert(ends(command(p,"v1 locked check deadmines"),"denied undiscovered"));assert(!p.teleports);
- command(p,"deadmines");assert(ends(messages.back(),"unlock its teleport for this character."));assert(!p.teleports);
+ command(p,"deadmines");assert(ends(messages.back(),"unlock its teleport for this account."));assert(!p.teleports);
  reset();p={};CharacterDatabase.persisted.clear();
  const auto* dungeon=FindDestination("ragefire_chasm",false);assert(dungeon);
  p.mapId=dungeon->instanceMap;p.map.dungeon=true;p.RecordDungeonTravelVisit();
@@ -194,7 +207,7 @@ int main(){
  p={};assert(p.LoadDungeonTravelUnlocks()&&p.HasDungeonTravelUnlock("ragefire_chasm"));
  assert(!p.HasDungeonTravelUnlock("deadmines"));
  assert(ends(command(p,"v1 learned check ragefire_chasm"),"ready ok"));assert(!p.teleports);
- Player otherCharacter;otherCharacter.id=2;assert(otherCharacter.LoadDungeonTravelUnlocks()&&!otherCharacter.HasDungeonTravelUnlock("ragefire_chasm"));
+ Player otherCharacter;otherCharacter.id=2;assert(otherCharacter.LoadDungeonTravelUnlocks()&&otherCharacter.HasDungeonTravelUnlock("ragefire_chasm"));
  // A failed write cannot create a transient free unlock; entering again can retry.
  reset();p={};CharacterDatabase.persisted.clear();CharacterDatabase.writeOK=false;p.mapId=389;p.map.dungeon=true;p.RecordDungeonTravelVisit();
  assert(!p.HasDungeonTravelUnlock("ragefire_chasm")&&CharacterDatabase.persisted[1].empty());
@@ -292,7 +305,31 @@ int main(){
  fakeNow=461;command(p,"v1 cleanup cooldown self");
  assert(ends(command(p,"v1 expires check deadmines"),"ready ok"));
 
- std::cout<<"PASS: cooldown snapshot protocol and isolation; expansion "<<Expansion<<", persistent first-entry unlocks and catalog; complete alias inventory; actual adapter/parser and service guards, native-entry handoff, single-player movement, arrival/replay/expiry/cooldown/rate limits. Controlled APIs; not live travel.\n";
+ // Already-connected alts see new account discovery at their next request.
+ reset();p={};CharacterDatabase.persisted.clear();Player alt;alt.id=2;
+ assert(alt.LoadDungeonTravelUnlocks()&&!alt.HasDungeonTravelUnlock("ragefire_chasm"));
+ p.mapId=389;p.map.dungeon=true;p.RecordDungeonTravelVisit();
+ assert(alt.LoadDungeonTravelUnlocks()&&alt.HasDungeonTravelUnlock("ragefire_chasm"));
+ assert(ends(command(alt,"v1 shared check ragefire_chasm"),"ready ok"));
+ assert(ends(command(alt,"v1 shared go ragefire_chasm"),"pending transfer"));
+ // Account discovery is shared but cooldown and receipts are still per character.
+ p={};assert(command(p,"v1 mainTimer cooldown self")=="PBTPC 1 mainTimer 0 300");
+ assert(command(alt,"v1 altTimer cooldown self")=="PBTPC 1 altTimer 300 300");
+ Player stranger;stranger.id=3;stranger.session.account=2;
+ assert(stranger.LoadDungeonTravelUnlocks()&&!stranger.HasDungeonTravelUnlock("ragefire_chasm"));
+ assert(ends(command(stranger,"v1 private check ragefire_chasm",2),"denied undiscovered"));
+ // A database failure cannot use a stale prior account snapshot to grant a port.
+ p.LoadDungeonTravelUnlocks();CharacterDatabase.readOK=false;
+ assert(ends(command(p,"v1 stale check ragefire_chasm"),"denied storage_unavailable"));assert(!p.teleports);
+ // Legacy rows written during the upgrade window remain visible, without a read granting new discovery.
+ reset();p={};CharacterDatabase.persisted.clear();CharacterDatabase.legacy[1].insert("deadmines");
+ assert(p.LoadDungeonTravelUnlocks()&&p.HasDungeonTravelUnlock("deadmines"));
+ assert(!CharacterDatabase.writes&&CharacterDatabase.persisted[1].empty());
+ CharacterDatabase.legacy[1].insert("uldaman");
+ assert(p.LoadDungeonTravelUnlocks()&&p.HasDungeonTravelUnlock("uldaman"));
+ reset();p={};p.session.account=0;assert(!p.LoadDungeonTravelUnlocks()&&!CharacterDatabase.reads);
+
+ std::cout<<"PASS: account discovery and refreshed alt snapshots; cooldown snapshot protocol and isolation; expansion "<<Expansion<<", persistent first-entry unlocks and catalog; complete alias inventory; actual adapter/parser and service guards, native-entry handoff, single-player movement, arrival/replay/expiry/cooldown/rate limits. Controlled APIs; not live travel.\n";
 }
 '''
 with tempfile.TemporaryDirectory(prefix='player-travel-test-') as directory:

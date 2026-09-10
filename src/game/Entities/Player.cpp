@@ -4296,6 +4296,13 @@ void Player::DeleteFromDB(ObjectGuid playerguid, uint32 accountId, bool updateRe
                 while (resultFriend->NextRow());
             }
 
+            // Preserve account discovery before removing any legacy character history.
+            CharacterDatabase.PExecute(
+                "INSERT INTO account_dungeon_travel (account, destination, first_visit) "
+                "SELECT IF(c.account <> 0, c.account, c.deleteInfos_Account), t.destination, t.first_visit "
+                "FROM character_dungeon_travel t INNER JOIN characters c ON c.guid = t.guid "
+                "WHERE c.guid = %u AND (c.account <> 0 OR c.deleteInfos_Account > 0) "
+                "ON DUPLICATE KEY UPDATE first_visit = LEAST(account_dungeon_travel.first_visit, VALUES(first_visit))", lowguid);
             CharacterDatabase.PExecute("DELETE FROM character_dungeon_travel WHERE guid = '%u'", lowguid);
             CharacterDatabase.PExecute("DELETE FROM characters WHERE guid = '%u'", lowguid);
             CharacterDatabase.PExecute("DELETE FROM character_action WHERE guid = '%u'", lowguid);

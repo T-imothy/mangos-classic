@@ -278,7 +278,7 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
         reply = process("go");
     if (reply.reason == "undiscovered")
     {
-        SendSysMessage("Travel locked: enter this dungeon once to unlock its teleport for this character.");
+        SendSysMessage("Travel locked: enter this dungeon once to unlock its teleport for this account.");
         return true;
     }
     const std::string line = reply.state == "pending" ? std::string("Travelling to ") + destination->name + "." :
@@ -290,22 +290,32 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
 // Load lazily for human visitors/requests, not every random bot at startup.
 bool Player::LoadDungeonTravelUnlocks()
 {
-    if (m_dungeonTravelUnlocksLoaded)
-        return true;
-    // A sentinel guarantees a row for an empty history; query failure stays fail-closed.
+    if (!GetSession())
+        return false;
+    const uint32 account = GetSession()->GetAccountId();
+    if (!account)
+        return false;
+    // Refresh the snapshot so other characters on the account see new discoveries.
+    // Legacy rows also cover visits recorded by an old binary during a rolling upgrade.
+    // A sentinel distinguishes an empty history from a database failure.
     auto result = CharacterDatabase.PQuery(
-        "SELECT destination FROM character_dungeon_travel WHERE guid = %u UNION ALL SELECT ''", GetGUIDLow());
+        "SELECT destination FROM account_dungeon_travel WHERE account = %u "
+        "UNION SELECT t.destination FROM character_dungeon_travel t "
+        "INNER JOIN characters c ON c.guid = t.guid "
+        "WHERE c.account = %u OR (c.account = 0 AND c.deleteInfos_Account = %u) "
+        "UNION ALL SELECT ''", account, account, account);
     if (!result)
         return false;
+    std::set<std::string> unlocked;
     do
     {
         const std::string key = result->Fetch()[0].GetString();
         const auto* destination = FindDestination(key, false);
         if (destination && destination->available)
-            m_dungeonTravelUnlocks.insert(destination->key);
+            unlocked.insert(destination->key);
     }
     while (result->NextRow());
-    m_dungeonTravelUnlocksLoaded = true;
+    m_dungeonTravelUnlocks.swap(unlocked);
     return true;
 }
 
@@ -326,15 +336,15 @@ void Player::RecordDungeonTravelVisit()
         return;
     std::vector<const char*> discovered;
     std::ostringstream query;
-    query << "INSERT IGNORE INTO character_dungeon_travel (guid, destination, first_visit) VALUES ";
+    query << "INSERT IGNORE INTO account_dungeon_travel (account, destination, first_visit) VALUES ";
     for (const auto& destination : PlayerTravel::Destinations)
         if (destination.available && destination.instanceMap == GetMapId() &&
             !HasDungeonTravelUnlock(destination.key))
         {
             if (!discovered.empty())
                 query << ',';
-            // Both the numeric GUID and canonical whitelist key are server-owned values.
-            query << '(' << GetGUIDLow() << ",'" << destination.key << "',UNIX_TIMESTAMP())";
+            // Both the authenticated account and canonical whitelist key are server-owned values.
+            query << '(' << GetSession()->GetAccountId() << ",'" << destination.key << "',UNIX_TIMESTAMP())";
             discovered.push_back(destination.key);
         }
     // One bounded insert on first entry only; publish the in-memory unlock after persistence succeeds.

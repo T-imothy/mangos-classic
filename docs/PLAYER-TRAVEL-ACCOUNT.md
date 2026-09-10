@@ -1,0 +1,11 @@
+# Account dungeon discovery
+
+Dungeon discovery is now shared by all characters on the same account within each realm. Classic, TBC and Wrath retain separate discovery stores and expansion-specific destination keys. Existing character discoveries are retained and migrated, including soft-deleted characters whose saved account is still known. Deleting an individual character does not remove account unlocks. Native account deletion removes the account's discovery rows for this realm.
+
+The PBTP check/go/status protocol, PBTPU unlock catalog and PBTPC cooldown snapshot have not changed. The unlock catalog now reports the requesting account's discoveries. Request it on login/window open and after a first visit, respecting its existing ten-second limit. Update UI wording from "this character" to "this account" for discovery, and key any shared discovery cache by realm and account. A stale display is not authoritative: always perform a fresh check/go transaction.
+
+Cooldowns and travel transactions remain per account/character pair. An alt benefits from an account discovery but keeps its own cooldown and must still satisfy its own level, group, combat, map and entry restrictions. A discovery does not grant eligibility to travel. GM `.t`/`.tele` remain at their original rank requirement and do not become rank-0 commands.
+
+The additive migration is `sql/custom/characters/20260909_02_account_dungeon_travel.sql`. It creates `account_dungeon_travel`, merges existing visits by account/destination using the earliest timestamp, and retains the legacy character table. Legacy rows remain readable during the upgrade window so visits recorded by an old running binary are not missed. Permanent character deletion carries any remaining legacy visits into the account table before deleting the character in the same native transaction.
+
+Unlock reads refresh a per-Player snapshot from the account table and legacy history. There is no shared mutable cross-thread cache or startup scan for bots. This lets an already-connected alt see a new account unlock at its next catalog/eligibility request. Database failure still fails closed rather than granting eligibility from stale cached data. No addon files are edited in this core release.

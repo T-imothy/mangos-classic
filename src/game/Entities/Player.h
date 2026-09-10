@@ -2465,7 +2465,6 @@ class Player : public Unit
         bool m_isDebuggingAreaTriggers;
 
     private:
-        bool m_dungeonTravelUnlocksLoaded = false;
         std::set<std::string> m_dungeonTravelUnlocks;
 
         // internal common parts for CanStore/StoreItem functions
