@@ -85,8 +85,6 @@ namespace
             return "taxi";
         if (player->GetTransport())
             return "transport";
-        if (player->InArena())
-            return "arena";
         if (player->InBattleGround())
             return "battleground";
         if (!player->GetMap())

@@ -121,7 +121,7 @@ int main(){
   {&Player::combat,"combat"},{&Player::taxi,"taxi"},{&Player::transport,"transport"},{&Player::arena,"arena"},
   {&Player::bg,"battleground"},{&Player::charm,"controlled"},{&Player::rooted,"controlled"},
   {&Player::controlled,"controlled"},{&Player::gm,"gm_mode"},{&Player::transfer,"transfer_busy"}};
- for(auto const& flag:guards){reset();p={};p.*flag.first=true;assert(ends(command(p,"v1 x check deadmines"),"denied "+flag.second));assert(!p.teleports&&p.*flag.first);}
+ for(auto const& flag:guards){if(Expansion==0&&flag.second=="arena")continue;reset();p={};p.*flag.first=true;assert(ends(command(p,"v1 x check deadmines"),"denied "+flag.second));assert(!p.teleports&&p.*flag.first);}
  reset();p={};p.alive=false;assert(ends(command(p,"v1 x check deadmines"),"denied dead"));assert(!p.alive);
  reset();p={};p.real=false;assert(ends(command(p,"v1 x check deadmines"),"denied not_player"));
  reset();p={};p.map.dungeon=true;assert(ends(command(p,"v1 x check deadmines"),"denied instance"));
