@@ -14,7 +14,7 @@ DROP TEMPORARY TABLE portable_auction_item;
 CREATE TEMPORARY TABLE portable_auction_creature LIKE creature_template;
 INSERT INTO portable_auction_creature SELECT * FROM creature_template WHERE Entry=14337;
 UPDATE portable_auction_creature SET Entry=65002, Name='Camotron 9000',
-  SubName='Auction House', DisplayId1=14379, DisplayId2=0, DisplayId3=0, DisplayId4=0,
+  SubName='Auction House', DisplayId1=6909, DisplayId2=0, DisplayId3=0, DisplayId4=0,
   Faction=35, NpcFlags=4096, UnitFlags=768, MovementType=0, VendorTemplateId=0,
   EquipmentTemplateId=0, GossipMenuId=0, LootId=0, PickpocketLootId=0, SkinningLootId=0,
   MinLootGold=0, MaxLootGold=0, SpellList=0, AIName='NullAI', ScriptName='';

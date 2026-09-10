@@ -2,7 +2,7 @@
 
 Item entry **65002** is the same in Classic, TBC and Wrath. Give a test item with `.additem 65002 1` after applying the world migration and restarting the world server.
 
-The reusable item summons creature entry **65002**, Camotron 9000, a stationary mechanical auctioneer (display 14379), for 600 seconds. Item and creature entries are separate namespaces; character transfer copies the inventory item entry, never the summoned creature. Existing character-transfer code must create a fresh destination item-instance GUID as usual.
+The reusable item summons creature entry **65002**, Camotron 9000, a stationary robot chicken auctioneer (native OOX/battle chicken display 6909), for 600 seconds. Item and creature entries are separate namespaces; character transfer copies the inventory item entry, never the summoned creature. Existing character-transfer code must create a fresh destination item-instance GUID as usual.
 
 Spell 21342 is the existing client-supported instant self-target dummy carrier. Its script only handles casts from item 65002. The item has a separate 1,800,000 ms cooldown, persists through logout, and follows the existing mailbox/repair-hammer policy of resetting at world-server restart. It requires no Engineering skill. No client patch or addon change is required.
 
