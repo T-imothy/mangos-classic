@@ -1,6 +1,6 @@
 # Classic dungeon and raid travel commands
 
-Enter commands in chat. Full canonical commands also work in the addon PBTP protocol. Short aliases are case-insensitive. Existing points may be inside or outside; shared approaches require following the normal route. Eligibility, native entry requirements and cooldown still apply.
+Enter commands in chat. Full canonical commands also work in the addon PBTP protocol. Short aliases are case-insensitive. Existing points may be inside or outside; shared approaches require following the normal route. Each destination first requires this character to enter the dungeon/raid once. That unlock survives relogs and restarts. Eligibility, native entry requirements and cooldown still apply.
 
 | Dungeon / raid | Full command | Short command(s) | Arrival |
 |---|---|---|---|

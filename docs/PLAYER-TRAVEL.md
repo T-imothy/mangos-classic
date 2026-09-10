@@ -38,7 +38,7 @@ Only `ready` from a check authorizes sending go. A ready reply from status does 
 
 `pending transfer` means initiation only. `arrived ok` requires an alive player fully in world, no pending transfer, the approved map and a 3D distance no greater than 20 yards. Once arrival is confirmed, the instance ID must continue to match. Poll no faster than every two seconds for at most 60 seconds. Do not recruit on timeout, cancellation, mismatched IDs/keys, late replies or any state other than confirmed arrival. There is no GM fallback, cancel rollback, return teleport or automatic raid conversion.
 
-Possible denial reasons: arguments, rate_limit, busy, expired, request_conflict, invalid_destination, wrong_expansion, unavailable_destination, disabled, transfer_busy, not_player, gm_mode, dead, combat, taxi, transport, arena, battleground, instance, controlled, not_leader, too_low_level, raid_required, instance_combat, instance_full, lockout, entry_requirements, cooldown, transfer_failed, moved_away. Wrath also reports battlefield, battle_in_progress or not_owner for Vault of Archavon. Unsupported versions return `unsupported version`.
+Possible denial reasons: undiscovered, storage_unavailable, arguments, rate_limit, busy, expired, request_conflict, invalid_destination, wrong_expansion, unavailable_destination, disabled, transfer_busy, not_player, gm_mode, dead, combat, taxi, transport, arena, battleground, instance, controlled, not_leader, too_low_level, raid_required, instance_combat, instance_full, lockout, entry_requirements, cooldown, transfer_failed, moved_away. Wrath also reports battlefield, battle_in_progress or not_owner for Vault of Archavon. Unsupported versions return `unsupported version`.
 
 ## Entry policy and placement
 
@@ -54,6 +54,35 @@ All expansion-valid keys have a data-backed destination: 32 Classic, 57 TBC, 80 
 
 `python tests/player_travel_regression.py <core-root>` compiles the actual command adapter and transaction service with controlled external APIs. It tests every expansion-valid canonical key and alias, native entry handoff, guards, leadership changes, no movement of a second human, check/go/state changes, duplicate and lost-reply handling, cooldown, expiry, stale arrival, rate limits and bounded storage. Static checks verify command security and world-thread dispatch. Compile each native core separately to verify the real interfaces.
 
-The destination evidence is a database/DBC/collision/terrain review and controlled command-routing test. It does not prove every destination with a real client, native instance state, current spawns or both factions in every difficulty. No live character was teleported during validation. These live entry and arrival checks remain to be exercised after restart. No boss scripts, addon files, existing GM locations or database schema are changed.
+The destination evidence is a database/DBC/collision/terrain review and controlled command-routing test. It does not prove every destination with a real client, native instance state, current spawns or both factions in every difficulty. No live character was teleported during validation. These live entry and arrival checks remain to be exercised after restart. No boss scripts, addon files or existing GM locations are changed. The additive character-history migration is required below.
 
 Recruitment discover continues using inclusive min/max levels; validation also caps each expansion at 60/70/80 even if MaxPlayerLevel is configured higher. No new discover syntax is introduced.
+
+## First-entry unlocks (required)
+
+Each character must enter the actual dungeon or raid once before its `.tp` destination becomes available. This is permanent per-character history, independent of account, instance lockouts and dungeon resets. Standing outside the portal or merely selecting/checking a destination does not unlock it. Successful native DungeonMap entry records an alive human visitor while travel is enabled; bots, GM mode and incomplete entry do not qualify. Returning to a map already visited does not issue another database write.
+
+Apply `sql/custom/characters/20260909_01_player_dungeon_travel.sql` to the realm's CHARACTER database before using this binary. It adds the InnoDB table `character_dungeon_travel`, keyed by character GUID and canonical destination, with the first-visit timestamp. No existing character rows or native instance bindings are modified. Character history is loaded lazily, so this feature does not query every random bot at startup. A first visit uses one bounded insert; the in-memory unlock is published only after the database confirms the write. Query/write failure does not grant an unlock. Reconnect/restart reloads saved history. Permanent character deletion also deletes its unlock rows; soft deletion/restoration preserves them.
+
+History starts with this feature's deployment. Older visits are not inferred from account activity, suggested levels or group/instance bindings. Enter once again to establish the record; an alive character logging back into a dungeon after deployment qualifies. Shared instance maps share unlocks: all four Scarlet Monastery wing keys, Lower/Upper Blackrock Spire, and Dire Maul's three wing keys respectively. Molten Core, Blackwing Lair and Eye of Eternity require visiting their own raid maps even though the travel destination is a shared approach. Original Naxxramas and Wrath Naxxramas have different stored keys.
+
+An unvisited destination returns `PBTP 1 <id> <key> denied undiscovered` during check/go, and the manual command explains that the character must enter first. A denied transaction remains terminal; after discovering the dungeon, start a new check with a fresh ID. Permanent unlock does not remove temporary travel restrictions, level requirements, cooldown or native entry rules. For example, a character currently inside a dungeon may have it unlocked but cannot initiate `.tp` until outside.
+
+### Read-only unlock catalog for the addon
+
+The existing check/go/status reply grammar is unchanged. This additional request returns the expansion's complete lock/unlock snapshot, independent of combat, leadership or current map:
+
+```
+.tp v1 catalog123 unlocks all
+PBTPU 1 catalog123 begin 32
+PBTPU 1 catalog123 ragefire_chasm locked
+PBTPU 1 catalog123 deadmines unlocked
+...one row for each expansion-valid key...
+PBTPU 1 catalog123 end 32
+```
+
+Counts are 32 Classic, 57 TBC and 80 Wrath. The prefix `PBTPU` distinguishes the read-only catalog from `PBTP` transaction receipts. Each row is a private system message with exactly five space-separated tokens. A row has the canonical key followed by `locked` or `unlocked`; begin/end have the expected row count. The addon must accept only the requested ID, known keys and a complete matching begin/end count; never treat a partial or failed snapshot as all unlocked. Errors use the normal `PBTP 1 <id> all denied <reason>` form (disabled, rate_limit, storage_unavailable or arguments). At most one catalog per ten seconds per account/character is accepted, in addition to the normal command rate limit. Reusing IDs cannot bypass that limit. The catalog never creates a travel transaction, teleports, changes ownership, grants an unlock or charges teleport cooldown.
+
+Cache the catalog for UI display and refresh after login or entering an instance, respecting the ten-second rate limit. Display Locked: enter this dungeon once until the server reports unlocked. Treat locked/unlocked as discovery history only: always perform fresh check/go/status validation when starting travel. No addon-side claim may grant discovery. The manual `.tp` list also labels destinations locked/unlocked.
+
+Controlled fixtures cover first entry, persistence across fresh Player objects, repeat visits without extra writes, distinct characters, shared-map wings, Naxxramas version separation, read/write failures, blocked recording states and the complete catalog/rate limit. They do not replace live client entry tests. SQL verification uses an isolated temporary table and does not create fake characters or grant real unlocks.

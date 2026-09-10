@@ -95,6 +95,15 @@ namespace PlayerTravel
             return ++client.requests <= 6;
         }
 
+        bool AllowCatalog(Owner owner, uint64_t now)
+        {
+            auto found = clients.find(owner);
+            if (found == clients.end() || now < found->second.nextCatalog)
+                return false;
+            found->second.nextCatalog = now + 10;
+            return true;
+        }
+
         Reply Process(Owner owner, const std::string& id, const std::string& operation,
             const std::string& key, const Destination* destination, unsigned expansion,
             const Position& position, const std::string& eligibility, unsigned cooldown,
@@ -182,7 +191,7 @@ namespace PlayerTravel
         struct Client
         {
             std::map<std::string, Record> receipts;
-            uint64_t nextTravel = 0, lastSeen = 0, rateWindow = 0;
+            uint64_t nextTravel = 0, nextCatalog = 0, lastSeen = 0, rateWindow = 0;
             unsigned requests = 0;
         };
         std::map<Owner, Client> clients;

@@ -7,6 +7,7 @@
 #include "Chat/PlayerTravel.h"
 #include "Chat/PlayerTravelDestinations.h"
 #include "Config/Config.h"
+#include "Database/DatabaseEnv.h"
 #include "Entities/Player.h"
 #include "Globals/ObjectMgr.h"
 #include "Groups/Group.h"
@@ -100,6 +101,11 @@ namespace
         if (!destination || !destination->available)
             return "unavailable_destination";
 
+        if (!player->LoadDungeonTravelUnlocks())
+            return "storage_unavailable";
+        if (!player->HasDungeonTravelUnlock(destination->key))
+            return "undiscovered";
+
         const MapEntry* map = sMapStore.LookupEntry(destination->map);
         if (!map)
             return "unavailable_destination";
@@ -174,6 +180,31 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
             SendSysMessage("Travel: too many requests. Try again shortly.");
         return true;
     }
+    if (machine && words.size() == 4 && words[0] == "v1" &&
+        words[2] == "unlocks" && key == "all" && PlayerTravel::Token(id, 64))
+    {
+        if (!sConfig.GetBoolDefault("PlayerTravel.Enabled", false))
+            send({"denied", "disabled"});
+        else if (!travel.AllowCatalog(owner, now))
+            send({"denied", "rate_limit"});
+        else if (!player->LoadDungeonTravelUnlocks())
+            send({"denied", "storage_unavailable"});
+        else
+        {
+            unsigned count = 0;
+            for (const auto& destination : PlayerTravel::Destinations)
+                if (destination.available)
+                    ++count;
+            const std::string prefix = "PBTPU 1 " + id + " ";
+            SendSysMessage((prefix + "begin " + std::to_string(count)).c_str());
+            for (const auto& destination : PlayerTravel::Destinations)
+                if (destination.available)
+                    SendSysMessage((prefix + destination.key +
+                        (player->HasDungeonTravelUnlock(destination.key) ? " unlocked" : " locked")).c_str());
+            SendSysMessage((prefix + "end " + std::to_string(count)).c_str());
+        }
+        return true;
+    }
     if (machine)
     {
         if (words[0] != "v1")
@@ -192,12 +223,18 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
     }
     if (words.empty())
     {
+        if (!player->LoadDungeonTravelUnlocks())
+        {
+            SendSysMessage("Travel: unlock history is unavailable. Contact the server administrator.");
+            return true;
+        }
         SendSysMessage("Usage: .tp <destination> (for example .tp SM or .tp Ulda). Available destinations:");
         for (const auto& destination : PlayerTravel::Destinations)
             if (destination.available)
             {
                 const std::string line = std::string(destination.name) + ": .tp " + destination.key +
-                    " (" + destination.aliases + ")";
+                    " (" + destination.aliases + ") [" +
+                    (player->HasDungeonTravelUnlock(destination.key) ? "unlocked" : "locked: enter this dungeon first") + "]";
                 SendSysMessage(line.c_str());
             }
         return true;
@@ -220,8 +257,69 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
     auto reply = process("check");
     if (reply.state == "ready")
         reply = process("go");
+    if (reply.reason == "undiscovered")
+    {
+        SendSysMessage("Travel locked: enter this dungeon once to unlock its teleport for this character.");
+        return true;
+    }
     const std::string line = reply.state == "pending" ? std::string("Travelling to ") + destination->name + "." :
         "Travel denied: " + reply.reason + ".";
     SendSysMessage(line.c_str());
     return true;
+}
+
+// Load lazily for human visitors/requests, not every random bot at startup.
+bool Player::LoadDungeonTravelUnlocks()
+{
+    if (m_dungeonTravelUnlocksLoaded)
+        return true;
+    // A sentinel guarantees a row for an empty history; query failure stays fail-closed.
+    auto result = CharacterDatabase.PQuery(
+        "SELECT destination FROM character_dungeon_travel WHERE guid = %u UNION ALL SELECT ''", GetGUIDLow());
+    if (!result)
+        return false;
+    do
+    {
+        const std::string key = result->Fetch()[0].GetString();
+        const auto* destination = FindDestination(key, false);
+        if (destination && destination->available)
+            m_dungeonTravelUnlocks.insert(destination->key);
+    }
+    while (result->NextRow());
+    m_dungeonTravelUnlocksLoaded = true;
+    return true;
+}
+
+void Player::RecordDungeonTravelVisit()
+{
+    if (!sConfig.GetBoolDefault("PlayerTravel.Enabled", false) || !IsInWorld() || !IsAlive() ||
+        IsGameMaster() || !GetMap() || !GetMap()->IsDungeon())
+        return;
+#ifdef ENABLE_PLAYERBOTS
+    if (!isRealPlayer())
+        return;
+#endif
+    bool supported = false;
+    for (const auto& destination : PlayerTravel::Destinations)
+        if (destination.available && destination.instanceMap == GetMapId())
+            supported = true;
+    if (!supported || !LoadDungeonTravelUnlocks())
+        return;
+    std::vector<const char*> discovered;
+    std::ostringstream query;
+    query << "INSERT IGNORE INTO character_dungeon_travel (guid, destination, first_visit) VALUES ";
+    for (const auto& destination : PlayerTravel::Destinations)
+        if (destination.available && destination.instanceMap == GetMapId() &&
+            !HasDungeonTravelUnlock(destination.key))
+        {
+            if (!discovered.empty())
+                query << ',';
+            // Both the numeric GUID and canonical whitelist key are server-owned values.
+            query << '(' << GetGUIDLow() << ",'" << destination.key << "',UNIX_TIMESTAMP())";
+            discovered.push_back(destination.key);
+        }
+    // One bounded insert on first entry only; publish the in-memory unlock after persistence succeeds.
+    if (!discovered.empty() && CharacterDatabase.DirectExecute(query.str().c_str()))
+        for (const char* key : discovered)
+            m_dungeonTravelUnlocks.insert(key);
 }
