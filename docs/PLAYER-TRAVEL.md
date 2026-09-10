@@ -86,3 +86,7 @@ Counts are 32 Classic, 57 TBC and 80 Wrath. The prefix `PBTPU` distinguishes the
 Cache the catalog for UI display and refresh after login or entering an instance, respecting the ten-second rate limit. Display Locked: enter this dungeon once until the server reports unlocked. Treat locked/unlocked as discovery history only: always perform fresh check/go/status validation when starting travel. No addon-side claim may grant discovery. The manual `.tp` list also labels destinations locked/unlocked.
 
 Controlled fixtures cover first entry, persistence across fresh Player objects, repeat visits without extra writes, distinct characters, shared-map wings, Naxxramas version separation, read/write failures, blocked recording states and the complete catalog/rate limit. They do not replace live client entry tests. SQL verification uses an isolated temporary table and does not create fake characters or grant real unlocks.
+
+## Authoritative cooldown snapshot
+
+See [PLAYER-TRAVEL-COOLDOWN.md](PLAYER-TRAVEL-COOLDOWN.md) for `.tp v1 <id> cooldown self`, the private PBTPC reply, limits and precise reconnect/restart behavior. This read-only extension does not alter travel eligibility or the configured cooldown.

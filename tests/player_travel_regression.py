@@ -8,6 +8,7 @@ from pathlib import Path
 import json,re,subprocess,sys,tempfile,os
 root=Path(sys.argv[1])
 source=(root/'src/game/Chat/PlayerTravel.cpp').read_text()
+assert re.search(r'duration_cast<std::chrono::seconds>\s*\(\s*std::chrono::steady_clock::now', source)
 source='\n'.join(line for line in source.splitlines() if not line.startswith('#include "'))
 source=re.sub(r'uint64_t TravelNow\(\)\s*\{.*?\n    \}', 'uint64_t TravelNow() { return fakeNow; }', source, count=1,flags=re.S)
 manifest=json.loads((root/'docs/PLAYER-TRAVEL-DESTINATIONS.json').read_text())
@@ -98,7 +99,7 @@ void reset(){travel=PlayerTravel::Service{};messages.clear();fakeNow=100;sConfig
  for(const auto& d:PlayerTravel::Destinations)if(d.available)CharacterDatabase.persisted[1].insert(d.key);
  for(auto const& d:PlayerTravel::Destinations)if(d.available){sMapStore.maps[d.map].dungeon=d.map==d.instanceMap;
  if(d.entryTrigger)sObjectMgr.entries[d.entryTrigger]={d.instanceMap,1};}}
-std::string command(Player& p,std::string args){WorldSession session;session.player=&p;ChatHandler handler;handler.m_session=&session;
+std::string command(Player& p,std::string args,uint32 account=1){WorldSession session;session.account=account;session.player=&p;ChatHandler handler;handler.m_session=&session;
  auto n=messages.size();assert(handler.HandlePlayerTravelCommand(&args[0]));assert(messages.size()>n);return messages.back();}
 bool ends(std::string text,std::string suffix){return text.size()>=suffix.size()&&text.substr(text.size()-suffix.size())==suffix;}
 void arrive(Player& p){p.transfer=false;p.world=true;}
@@ -220,7 +221,78 @@ int main(){
  assert(ends(command(p,"v1 catalog3 unlocks all"),"end "+std::to_string(expected)));
  reset();p={};CharacterDatabase.readOK=false;assert(ends(command(p,"v1 bad unlocks all"),"denied storage_unavailable"));
 
- std::cout<<"PASS: expansion "<<Expansion<<", persistent first-entry unlocks and catalog; complete alias inventory; actual adapter/parser and service guards, native-entry handoff, single-player movement, arrival/replay/expiry/cooldown/rate limits. Controlled APIs; not live travel.\n";
+ // Authoritative read-only cooldown snapshots, independent of teleport eligibility.
+ reset();p={};CharacterDatabase.readOK=false;p.combat=true;p.gm=true;p.alive=false;
+ assert(command(p,"v1 initial cooldown self")=="PBTPC 1 initial 0 300");
+ assert(!p.teleports&&!CharacterDatabase.reads&&!CharacterDatabase.writes);
+ assert(command(p,"v1 fast cooldown self")=="PBTP 1 fast self denied rate_limit");
+ fakeNow+=10;assert(command(p,"v1 later cooldown self")=="PBTPC 1 later 0 300");
+ // Reading creates no travel receipt, unlock or permission to use go.
+ p={};assert(command(p,"v1 later go deadmines")=="PBTP 1 later deadmines denied expired");
+ reset();p={};command(p,"v1 trip check deadmines");command(p,"v1 trip go deadmines");
+ assert(command(p,"v1 first cooldown self")=="PBTPC 1 first 300 300");
+ assert(p.teleports==1);
+ fakeNow+=10;assert(command(p,"v1 second cooldown self")=="PBTPC 1 second 290 300");
+ // Replayed go and reads cannot renew or consume the travel cooldown.
+ command(p,"v1 trip go deadmines");
+ for(unsigned step=2;step<=30;++step){fakeNow=100+step*10;
+  assert(command(p,"v1 tick cooldown self")=="PBTPC 1 tick "+std::to_string(300-step*10)+" 300");}
+ assert(p.teleports==1);arrive(p);
+ assert(ends(command(p,"v1 after check uldaman"),"ready ok"));
+ // Manual travel shares the same authoritative timer. Relog replaces Player/Session only.
+ reset();p={};command(p,"deadmines");assert(p.teleports==1);fakeNow+=17;p={};
+ assert(command(p,"v1 reconnect cooldown self")=="PBTPC 1 reconnect 283 300");
+ Player alternate;alternate.id=2;
+ assert(command(alternate,"v1 otherchar cooldown self")=="PBTPC 1 otherchar 0 300");
+ assert(command(p,"v1 otheraccount cooldown self",2)=="PBTPC 1 otheraccount 0 300");
+ // Existing cooldown state is in memory: a restarted Service has no previous timer.
+ travel=Service{};
+ assert(command(p,"v1 restarted cooldown self")=="PBTPC 1 restarted 0 300");
+ // Supported configuration bounds and one-second resolution match enforcement.
+ for(int value:{-1,0,17,300,3600,3601,2147483647}){
+  reset();p={};sConfig.cooldown=value;command(p,"deadmines");
+  unsigned duration=static_cast<unsigned>(std::min(3600,std::max(0,value)));
+  assert(command(p,"v1 duration cooldown self")=="PBTPC 1 duration "+std::to_string(duration)+" "+std::to_string(duration));
+  assert(travel.RemainingCooldown({1,1},101)==(duration?duration-1:0));
+  assert(travel.RemainingCooldown({1,1},100+duration)==0);
+ }
+ // Reloading the configured duration does not rewrite an already running timer.
+ reset();p={};command(p,"deadmines");sConfig.cooldown=17;fakeNow+=10;
+ assert(command(p,"v1 changed cooldown self")=="PBTPC 1 changed 290 17");
+ fakeNow+=10;sConfig.cooldown=0;
+ assert(command(p,"v1 disabledtimer cooldown self")=="PBTPC 1 disabledtimer 280 0");
+ // Refused travel or failed native initiation does not start cooldown.
+ reset();p={};p.combat=true;command(p,"deadmines");
+ assert(command(p,"v1 refused cooldown self")=="PBTPC 1 refused 0 300");
+ reset();p={};p.nativeSuccess=false;command(p,"deadmines");
+ assert(command(p,"v1 failed cooldown self")=="PBTPC 1 failed 0 300");
+ // Snapshot throttling is independent of unlock-catalog throttling and destination receipts.
+ reset();p={};command(p,"v1 list unlocks all");
+ assert(command(p,"v1 timer cooldown self")=="PBTPC 1 timer 0 300");
+ assert(ends(command(p,"v1 trip check deadmines"),"ready ok"));
+ assert(ends(command(p,"v1 trip go deadmines"),"pending transfer"));
+ fakeNow+=10;assert(command(p,"v1 timer2 cooldown self")=="PBTPC 1 timer2 290 300");
+ // Malformed requests never accept another character target or unsafe request IDs.
+ for(std::string request:std::vector<std::string>{"v1 bad/id cooldown self","v1 id cooldown 2","v1 id cooldown","v1 id cooldown self extra",
+                         "v1 "+std::string(65,'a')+" cooldown self"}){
+  reset();p={};auto line=command(p,request);
+  assert(ends(line,"self denied arguments"));assert(line.find("bad/id")==std::string::npos);
+  assert(!p.teleports&&!CharacterDatabase.reads&&!CharacterDatabase.writes);
+ }
+ reset();p={};std::string longest(64,'a');
+ assert(command(p,"v1 "+longest+" cooldown self")=="PBTPC 1 "+longest+" 0 300");
+ reset();p={};sConfig.enabled=false;
+ assert(command(p,"v1 off cooldown self")=="PBTP 1 off self denied disabled");
+ reset();p={};for(unsigned i=0;i<6;++i)command(p,"v1 x check deadmines");
+ assert(command(p,"v1 overloaded cooldown self")=="PBTP 1 overloaded self denied rate_limit");
+ // Reads cannot extend transaction expiry or retained receipt lifetime.
+ reset();p={};command(p,"v1 expires check deadmines");
+ for(unsigned tick=0;tick<=6;++tick){fakeNow=100+tick*10;command(p,"v1 snapshot cooldown self");}
+ assert(command(p,"v1 expires go deadmines")=="PBTP 1 expires deadmines denied expired");assert(!p.teleports);
+ fakeNow=461;command(p,"v1 cleanup cooldown self");
+ assert(ends(command(p,"v1 expires check deadmines"),"ready ok"));
+
+ std::cout<<"PASS: cooldown snapshot protocol and isolation; expansion "<<Expansion<<", persistent first-entry unlocks and catalog; complete alias inventory; actual adapter/parser and service guards, native-entry handoff, single-player movement, arrival/replay/expiry/cooldown/rate limits. Controlled APIs; not live travel.\n";
 }
 '''
 with tempfile.TemporaryDirectory(prefix='player-travel-test-') as directory:

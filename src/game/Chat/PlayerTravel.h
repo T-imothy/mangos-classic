@@ -73,6 +73,7 @@ namespace PlayerTravel
         using Owner = std::pair<uint32_t, uint32_t>; // Account and character GUID.
         static constexpr size_t MaxOwners = 4096;
         static constexpr size_t MaxReceipts = 32;
+        static constexpr unsigned MaxCooldown = 3600;
         static constexpr uint64_t Lifetime = 60, Retention = 300;
 
         bool AllowRequest(Owner owner, uint64_t now)
@@ -102,6 +103,23 @@ namespace PlayerTravel
                 return false;
             found->second.nextCatalog = now + 10;
             return true;
+        }
+
+        bool AllowCooldownSnapshot(Owner owner, uint64_t now)
+        {
+            auto found = clients.find(owner);
+            if (found == clients.end() || now < found->second.nextCooldownSnapshot)
+                return false;
+            found->second.nextCooldownSnapshot = now + 10;
+            return true;
+        }
+
+        unsigned RemainingCooldown(Owner owner, uint64_t now) const
+        {
+            auto found = clients.find(owner);
+            if (found == clients.end() || now >= found->second.nextTravel)
+                return 0;
+            return static_cast<unsigned>(std::min<uint64_t>(found->second.nextTravel - now, MaxCooldown));
         }
 
         Reply Process(Owner owner, const std::string& id, const std::string& operation,
@@ -172,7 +190,7 @@ namespace PlayerTravel
             record.reply = {"pending", "transfer"};
             if (!teleport())
                 return Finish(record, {"denied", "transfer_failed"}, now);
-            client.nextTravel = now + std::min(cooldown, 3600u);
+            client.nextTravel = now + std::min(cooldown, MaxCooldown);
             return record.reply; // TeleportTo success is initiation, never arrival.
         }
 
@@ -191,7 +209,7 @@ namespace PlayerTravel
         struct Client
         {
             std::map<std::string, Record> receipts;
-            uint64_t nextTravel = 0, nextCatalog = 0, lastSeen = 0, rateWindow = 0;
+            uint64_t nextTravel = 0, nextCatalog = 0, nextCooldownSnapshot = 0, lastSeen = 0, rateWindow = 0;
             unsigned requests = 0;
         };
         std::map<Owner, Client> clients;

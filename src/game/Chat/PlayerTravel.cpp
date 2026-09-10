@@ -168,9 +168,10 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
         words[0][0] == 'v' && words[0][1] >= '0' && words[0][1] <= '9';
     const std::string id = machine && words.size() > 1 ? words[1] : "invalid";
     const std::string key = machine && words.size() > 3 ? words[3] : "invalid";
+    const bool cooldownSnapshot = machine && words.size() > 2 && words[2] == "cooldown";
     auto send = [&](PlayerTravel::Reply reply)
     {
-        SendSysMessage(reply.Line(id, key).c_str());
+        SendSysMessage(reply.Line(id, cooldownSnapshot ? "self" : key).c_str());
     };
     if (!travel.AllowRequest(owner, now))
     {
@@ -178,6 +179,24 @@ bool ChatHandler::HandlePlayerTravelCommand(char* args)
             send({"denied", "rate_limit"});
         else
             SendSysMessage("Travel: too many requests. Try again shortly.");
+        return true;
+    }
+    if (machine && words[0] == "v1" && words.size() > 2 && words[2] == "cooldown")
+    {
+        if (words.size() != 4 || key != "self" || !PlayerTravel::Token(id, 64))
+            send({"denied", "arguments"});
+        else if (!sConfig.GetBoolDefault("PlayerTravel.Enabled", false))
+            send({"denied", "disabled"});
+        else if (!travel.AllowCooldownSnapshot(owner, now))
+            send({"denied", "rate_limit"});
+        else
+        {
+            const unsigned configured = std::min(PlayerTravel::Service::MaxCooldown,
+                static_cast<unsigned>(std::max(0, sConfig.GetIntDefault("PlayerTravel.CooldownSeconds", 300))));
+            const std::string line = "PBTPC 1 " + id + " " +
+                std::to_string(travel.RemainingCooldown(owner, now)) + " " + std::to_string(configured);
+            SendSysMessage(line.c_str());
+        }
         return true;
     }
     if (machine && words.size() == 4 && words[0] == "v1" &&
