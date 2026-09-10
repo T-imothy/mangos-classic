@@ -12,6 +12,6 @@ Apply `sql/custom/world/20260910_01_portable_auctioneer.sql` to the matching wor
 
 ## Rollout and verification
 
-Automatic mail grants are intentionally unchanged. The owner will test summoning, auction browsing/posting, faction routing, stationary lifetime, cooldown and relog behavior in game before authorizing distribution. After confirmation, separately add this item to new-character mail and a deduplicated one-time grant for existing players. No mail is sent by this release.
+Player-only distribution is enabled through the existing creation/login/startup grant hooks. Ownership and pending-mail checks prevent duplicate gifts to copied characters. See [Portable utility grants](PORTABLE-UTILITY-GRANTS.md).
 
 Pre-release checks include native builds for all three cores, migration/schema validation, deployed record verification, executable revision and matching symbol checks. These checks do not constitute an in-game auction transaction test.
