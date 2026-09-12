@@ -925,6 +925,10 @@ bool FollowMovementGenerator::Move(Unit& owner, float x, float y, float z)
             owner.NearTeleportTo(x, y, z, o);
         else
         {
+            // Recovery relocates directly; the old spline must not move the
+            // follower back to its previous path on the next position update.
+            owner.InterruptMoving();
+            _clearUnitStateMove(owner);
             owner.GetMap()->CreatureRelocation(static_cast<Creature*>(&owner), x, y, z, o);
             owner.SendHeartBeat();
         }
