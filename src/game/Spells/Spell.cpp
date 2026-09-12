@@ -4733,6 +4733,17 @@ Unit* Spell::GetPrefilledUnitTargetOrUnitTarget(SpellEffectIndex effIndex) const
 
 SpellCastResult Spell::CheckCast(bool strict)
 {
+    // Also enforce the reward requirements when Wrath uses its learned mount
+    // spell, or when a copied character already knows it without the item.
+    if (m_spellInfo->Id == 22721 && m_trueCaster->GetTypeId() == TYPEID_PLAYER)
+    {
+        Player* rider = static_cast<Player*>(m_trueCaster);
+        if (rider->GetLevel() < 40)
+            return SPELL_FAILED_LOW_CASTLEVEL;
+        if (rider->GetSkillValuePure(SKILL_RIDING) < 75)
+            return SPELL_FAILED_MIN_SKILL;
+    }
+
     // check cooldowns to prevent cheating (ignore passive spells, that client side visual only)
     if (!m_ignoreCooldowns && !m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE)
             && !m_trueCaster->IsSpellReady(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr))

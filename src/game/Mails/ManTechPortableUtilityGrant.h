@@ -12,6 +12,7 @@ class Player;
 namespace ManTechPortableUtilityGrant
 {
     bool GrantToCharacter(ObjectGuid characterGuid, Player* onlinePlayer = nullptr);
+    bool GrantLevelRewardToCharacter(ObjectGuid characterGuid, Player* onlinePlayer = nullptr);
     void BackfillExistingCharacters();
 }
 

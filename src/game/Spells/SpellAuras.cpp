@@ -2891,11 +2891,20 @@ void Aura::HandleAuraModIncreaseSpeed(bool /*apply*/, bool Real)
     GetTarget()->UpdateSpeed(MOVE_RUN, true);
 }
 
-void Aura::HandleAuraModIncreaseMountedSpeed(bool /*apply*/, bool Real)
+void Aura::HandleAuraModIncreaseMountedSpeed(bool apply, bool Real)
 {
     // all applied/removed only at real aura add/remove
     if (!Real)
         return;
+
+    // The ManTech level-40 reward scales only this mount's base speed.
+    // Native riding bonuses and slows still apply through UpdateSpeed.
+    if (apply && GetId() == 22721 && m_modifier.m_auraname == SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED &&
+        GetTarget()->GetTypeId() == TYPEID_PLAYER)
+    {
+        Player* rider = static_cast<Player*>(GetTarget());
+        m_modifier.m_amount = rider->GetLevel() >= 60 && rider->GetSkillValuePure(SKILL_RIDING) >= 150 ? 100 : 60;
+    }
 
     GetTarget()->UpdateSpeed(MOVE_RUN, true);
 }
