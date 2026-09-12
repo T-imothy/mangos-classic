@@ -4733,9 +4733,10 @@ Unit* Spell::GetPrefilledUnitTargetOrUnitTarget(SpellEffectIndex effIndex) const
 
 SpellCastResult Spell::CheckCast(bool strict)
 {
-    // Also enforce the reward requirements when Wrath uses its learned mount
-    // spell, or when a copied character already knows it without the item.
-    if (m_spellInfo->Id == 22721 && m_trueCaster->GetTypeId() == TYPEID_PLAYER)
+    // Only the custom reward whistle uses these requirements. Native Black
+    // War Raptor items and learned mounts keep their original behavior.
+    if (m_CastItem && m_CastItem->GetEntry() == 65003 && m_spellInfo->Id == 22721 &&
+        m_trueCaster->GetTypeId() == TYPEID_PLAYER)
     {
         Player* rider = static_cast<Player*>(m_trueCaster);
         if (rider->GetLevel() < 40)

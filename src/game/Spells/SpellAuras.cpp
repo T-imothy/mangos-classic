@@ -2903,7 +2903,9 @@ void Aura::HandleAuraModIncreaseMountedSpeed(bool apply, bool Real)
         GetTarget()->GetTypeId() == TYPEID_PLAYER)
     {
         Player* rider = static_cast<Player*>(GetTarget());
-        m_modifier.m_amount = rider->GetLevel() >= 60 && rider->GetSkillValuePure(SKILL_RIDING) >= 150 ? 100 : 60;
+        Item* whistle = rider->GetItemByGuid(GetCastItemGuid());
+        if (whistle && whistle->GetEntry() == 65003)
+            m_modifier.m_amount = rider->GetLevel() >= 60 && rider->GetSkillValuePure(SKILL_RIDING) >= 150 ? 100 : 60;
     }
 
     GetTarget()->UpdateSpeed(MOVE_RUN, true);

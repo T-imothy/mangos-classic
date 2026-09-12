@@ -26,25 +26,21 @@ int main() {
     fixture={};player.id=2;assert(!grant());assert(fixture.sent.empty());
     player.id=1;
     auto mount=[&]{return ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(guid,&player);};
-    for(auto level : {1u,39u,40u,59u,60u,80u}){
+    for(auto level:{1u,39u,40u,59u,60u,80u}){
         fixture={};fixture.level=fixture.liveLevel=level;
-        assert(mount()==(level>=40));assert(fixture.sent.size()==(level>=40?1u:0u));
-        assert(!mount());
+        assert(mount()==(level>=40));assert(fixture.sent.size()==(level>=40?1u:0u));assert(!mount());
     }
-    // A just-leveled player has not necessarily been saved yet.
     fixture={};fixture.level=39;fixture.liveLevel=40;assert(mount());
     fixture={};fixture.level=40;fixture.liveLevel=39;assert(!mount());
-    for(unsigned storage=0;storage<5;++storage){
+    for(unsigned storage=0;storage<3;++storage){
         fixture={};fixture.level=fixture.liveLevel=40;
-        if(storage==0)fixture.inventory.insert(18246);
-        if(storage==1)fixture.mail.insert(18246);
-        if(storage==2)fixture.unsaved.insert(18246);
-        if(storage==3)fixture.learned.insert(22721);
-        if(storage==4)fixture.liveLearned.insert(22721);
-        assert(!mount());assert(fixture.sent.empty());assert(fixture.grants.count("black_war_raptor_v1"));
-        fixture.inventory.clear();fixture.mail.clear();fixture.unsaved.clear();fixture.learned.clear();fixture.liveLearned.clear();
-        assert(!mount());
+        if(storage==0)fixture.inventory.insert(65003);
+        if(storage==1)fixture.mail.insert(65003);
+        if(storage==2)fixture.unsaved.insert(65003);
+        assert(!mount());assert(fixture.sent.empty());assert(fixture.grants.count("mantech_black_war_raptor_v1"));
+        fixture.inventory.clear();fixture.mail.clear();fixture.unsaved.clear();assert(!mount());
     }
+    fixture={};fixture.level=fixture.liveLevel=40;fixture.inventory.insert(18246);assert(mount());
     fixture={};fixture.level=fixture.liveLevel=40;fixture.grants={"portable_utilities_v1"};assert(mount());
     fixture={};fixture.level=fixture.liveLevel=40;fixture.bot=true;assert(!mount());
     fixture={};fixture.level=fixture.liveLevel=40;fixture.eligible=false;assert(!mount());
@@ -52,8 +48,7 @@ int main() {
     fixture={};fixture.level=fixture.liveLevel=40;player.id=2;assert(!mount());player.id=1;
     fixture={};fixture.level=40;assert(ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(guid));
     fixture={};fixture.level=39;assert(!ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(guid));
-    fixture={};fixture.level=fixture.liveLevel=40;assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,18246}));
-    assert(!grant());
-    std::cout<<"PASS level reward: levels, unsaved level-up, offline, all ownership forms, learned mounts, bots, deleted, failure, repeat and existing utilities\n";
+    fixture={};fixture.level=fixture.liveLevel=40;assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,65003}));assert(!grant());
+    std::cout<<"PASS custom reward: levels, copies, bank/mail/unsaved, original item distinct, bots and one-time delivery\n";
     std::cout<<"PASS actual grant implementation: fresh, legacy, copied, partial, bank/mail/unsaved, repeat, bot, deleted, failed-read and wrong-player cases\n";
 }

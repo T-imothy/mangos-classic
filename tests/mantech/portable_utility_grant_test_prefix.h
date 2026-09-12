@@ -19,14 +19,13 @@ struct ObjectGuid {
 struct Fixture {
     bool bot=false, eligible=true, failedRead=false;
     uint32 level=1, liveLevel=1;
-    std::set<uint32> learned, liveLearned;
     std::set<std::string> grants;
     std::set<uint32> inventory, mail, unsaved;
     std::vector<uint32> sent;
 } fixture;
 struct Field { uint32 value; uint32 GetUInt32() const{return value;} };
 struct Result {
-    Field fields[4]; Field* Fetch(){return fields;} bool NextRow(){return false;}
+    Field fields[3]; Field* Fetch(){return fields;} bool NextRow(){return false;}
 };
 struct Database {
     void BeginTransaction(){}
@@ -36,14 +35,14 @@ struct Database {
         va_list args; va_start(args,query); auto guid=va_arg(args,uint32);assert(guid==1);
         if(std::string(query).find("SELECT account")==0){
             va_end(args);if(!fixture.eligible)return nullptr;
-            return std::unique_ptr<Result>(new Result{{{fixture.bot?99u:1u},{fixture.level},{0},{0}}});
+            return std::unique_ptr<Result>(new Result{{{fixture.bot?99u:1u},{fixture.level},{0}}});
         }
         assert(std::string(query).find("SELECT EXISTS")==0);
         std::string key=va_arg(args,char const*);auto item=va_arg(args,uint32);va_end(args);
         if(fixture.failedRead)return nullptr;
         bool legacy=(item==65000 || item==65001) && fixture.grants.count("portable_utilities_v1");
         return std::unique_ptr<Result>(new Result{{{uint32(fixture.grants.count(key)||legacy)},
-            {uint32(fixture.inventory.count(item))},{uint32(fixture.mail.count(item))},{uint32(item==18246 && fixture.learned.count(22721))}}});
+            {uint32(fixture.inventory.count(item))},{uint32(fixture.mail.count(item))}}});
     }
     void PExecute(char const* query, ...) {
         assert(std::string(query).find("INSERT IGNORE INTO mantech_character_grants")==0);
@@ -53,7 +52,6 @@ struct Database {
 } CharacterDatabase;
 struct Player {
     uint32 GetLevel() const{return fixture.liveLevel;}
-    bool HasSpell(uint32 spell) const{return fixture.liveLearned.count(spell)!=0;}
     uint32 id=1; ObjectGuid GetObjectGuid() const{return {HIGHGUID_PLAYER,id};}
     bool HasItemCount(uint32 id,uint32 count,bool bank) const {
         assert(count==1 && bank);return fixture.unsaved.count(id)!=0;

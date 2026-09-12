@@ -18251,7 +18251,7 @@ void Player::SendInitialPacketsBeforeAddToMap()
     GetSession()->SendItemQuerySingleResponse(65000);
     GetSession()->SendItemQuerySingleResponse(65001);
     GetSession()->SendItemQuerySingleResponse(65002);
-    GetSession()->SendItemQuerySingleResponse(18246); // Refresh the cross-faction level-40 reward requirements.
+    GetSession()->SendItemQuerySingleResponse(65003); // Refresh the cross-faction level-40 reward requirements.
 
     SendInitialSpells();
 

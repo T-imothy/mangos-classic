@@ -34,7 +34,7 @@ namespace
         return !IsBotAccount(result->Fetch()[0].GetUInt32());
     }
 
-    bool SendSingleItemGrant(ObjectGuid characterGuid, Player* onlinePlayer, uint32 itemId, char const* grantKey, char const* subject, uint32 learnedSpell = 0)
+    bool SendSingleItemGrant(ObjectGuid characterGuid, Player* onlinePlayer, uint32 itemId, char const* grantKey, char const* subject)
     {
         uint32 guid = characterGuid.GetCounter();
         // A transferred character may own the item without any local grant
@@ -48,9 +48,8 @@ namespace
             "EXISTS (SELECT 1 FROM character_inventory ci INNER JOIN item_instance ii ON ii.guid=ci.item "
             "WHERE ci.guid='%u' AND ii.itemEntry='%u'), "
             "EXISTS (SELECT 1 FROM mail_items mi INNER JOIN mail m ON m.id=mi.mail_id "
-            "WHERE mi.receiver='%u' AND m.receiver='%u' AND mi.item_template='%u'), "
-            "EXISTS (SELECT 1 FROM character_spell WHERE guid='%u' AND spell='%u')",
-            guid, grantKey, itemId, guid, itemId, guid, guid, itemId, guid, learnedSpell);
+            "WHERE mi.receiver='%u' AND m.receiver='%u' AND mi.item_template='%u')",
+            guid, grantKey, itemId, guid, itemId, guid, guid, itemId);
         if (!state)
         {
             sLog.outError("ManTech portable utility grant: ownership query failed for character %u, item %u; grant deferred", guid, itemId);
@@ -62,9 +61,7 @@ namespace
             return false;
 
         bool owned = fields[1].GetUInt32() || fields[2].GetUInt32() ||
-            (learnedSpell && fields[3].GetUInt32()) ||
-            (onlinePlayer && (onlinePlayer->HasItemCount(itemId, 1, true) ||
-                              (learnedSpell && onlinePlayer->HasSpell(learnedSpell))));
+            (onlinePlayer && onlinePlayer->HasItemCount(itemId, 1, true));
         if (owned)
         {
             // Record the existing item as this character's one-time grant.
@@ -128,10 +125,9 @@ bool ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(ObjectGuid charact
     if (IsBotAccount(fields[0].GetUInt32()) || (!onlinePlayer && fields[1].GetUInt32() < 40))
         return false;
 
-    // Wrath consumes the item to learn the mount. Learned ownership also
-    // suppresses mail when a character is copied without local grant history.
-    return SendSingleItemGrant(characterGuid, onlinePlayer, 18246, "black_war_raptor_v1",
-                               "ManTech Level 40 Gift - Black War Raptor", 22721);
+    // The custom whistle stays reusable in all eras, including Wrath.
+    return SendSingleItemGrant(characterGuid, onlinePlayer, 65003, "mantech_black_war_raptor_v1",
+                               "ManTech Level 40 Gift - Black War Raptor");
 }
 
 void ManTechPortableUtilityGrant::BackfillExistingCharacters()
@@ -144,7 +140,7 @@ void ManTechPortableUtilityGrant::BackfillExistingCharacters()
         "AND (NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_mailbox_v1') "
         "OR NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_repair_v1')))) "
         "OR (c.account<>0 AND c.deleteDate IS NULL AND c.level>=40 AND NOT EXISTS "
-        "(SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='black_war_raptor_v1'))");
+        "(SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='mantech_black_war_raptor_v1'))");
 
     if (!result)
     {
