@@ -125,6 +125,13 @@ bool ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(ObjectGuid charact
     if (IsBotAccount(fields[0].GetUInt32()) || (!onlinePlayer && fields[1].GetUInt32() < 40))
         return false;
 
+    // This reward is for normal player accounts only, including offline
+    // backfill. Read directly so a missing account or failed lookup cannot
+    // fall back to SEC_PLAYER and accidentally qualify for the gift.
+    auto account = LoginDatabase.PQuery("SELECT gmlevel FROM account WHERE id='%u'", fields[0].GetUInt32());
+    if (!account || account->Fetch()[0].GetUInt32() != SEC_PLAYER)
+        return false;
+
     // The custom whistle stays reusable in all eras, including Wrath.
     return SendSingleItemGrant(characterGuid, onlinePlayer, 65003, "mantech_black_war_raptor_v1",
                                "ManTech Level 40 Gift - Black War Raptor");

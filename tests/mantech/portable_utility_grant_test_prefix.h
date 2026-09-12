@@ -10,6 +10,7 @@
 using uint32 = uint32_t;
 #define ENABLE_PLAYERBOTS
 #define _UNIXTIME_ "UNIX_TIMESTAMP()"
+enum { SEC_PLAYER = 0 };
 enum { HIGHGUID_PLAYER, MAIL_NORMAL, MAIL_STATIONERY_GM, MAIL_CHECK_MASK_NONE };
 struct ObjectGuid {
     uint32 id; ObjectGuid(uint32, uint32 value):id(value){}
@@ -18,7 +19,8 @@ struct ObjectGuid {
 };
 struct Fixture {
     bool bot=false, eligible=true, failedRead=false;
-    uint32 level=1, liveLevel=1;
+    uint32 level=1, liveLevel=1, security=SEC_PLAYER;
+    bool accountAvailable=true;
     std::set<std::string> grants;
     std::set<uint32> inventory, mail, unsaved;
     std::vector<uint32> sent;
@@ -50,6 +52,14 @@ struct Database {
         fixture.grants.insert(va_arg(args,char const*));va_end(args);
     }
 } CharacterDatabase;
+struct LoginDatabaseMock {
+    std::unique_ptr<Result> PQuery(char const* query, uint32 accountId) {
+        assert(std::string(query)=="SELECT gmlevel FROM account WHERE id='%u'");
+        assert(accountId==1);
+        if(!fixture.accountAvailable)return nullptr;
+        return std::unique_ptr<Result>(new Result{{{fixture.security},{0},{0}}});
+    }
+} LoginDatabase;
 struct Player {
     uint32 GetLevel() const{return fixture.liveLevel;}
     uint32 id=1; ObjectGuid GetObjectGuid() const{return {HIGHGUID_PLAYER,id};}
