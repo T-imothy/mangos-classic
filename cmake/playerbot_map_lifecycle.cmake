@@ -104,6 +104,65 @@ mantech_lifecycle_replace(_lifecycle_text [==[WorldObject* PlayerbotAI::GetWorld
 {
     // GetMap asserts when the bot is detached during a map transfer.
     if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+# Do not hold one bot's queue mutex while delivering to other bots.
+mantech_lifecycle_replace(_lifecycle_text [==[    std::list<ChatQueuedReply> delayedResponses;
+    {
+        std::scoped_lock lock(chatRepliesMutex);
+        while (!chatReplies.empty())
+        {
+            ChatQueuedReply holder = chatReplies.front();
+            time_t checkTime = holder.m_time;
+            if (checkTime && time(0) < checkTime)
+            {
+                delayedResponses.push_back(holder);
+                chatReplies.pop();
+                continue;
+            }
+            ChatReplyAction::ChatReplyDo(bot, holder.m_type, holder.m_guid1, holder.m_guid2, holder.m_msg, holder.m_chanName, holder.m_name);
+            chatReplies.pop();
+        }
+
+        for (std::list<ChatQueuedReply>::iterator i = delayedResponses.begin(); i != delayedResponses.end(); ++i)
+        {
+            chatReplies.push(*i);
+        }
+    }
+]==] [==[    std::vector<ChatQueuedReply> readyResponses;
+    {
+        std::scoped_lock lock(chatRepliesMutex);
+        // Drain only the current batch. Never hold a bot's reply mutex while
+        // broadcasting: delivery may enqueue a reply on another updating bot.
+        for (std::size_t remaining = chatReplies.size(); remaining; --remaining)
+        {
+            ChatQueuedReply holder = std::move(chatReplies.front());
+            chatReplies.pop();
+            if (holder.m_time && time(0) < holder.m_time)
+                chatReplies.push(std::move(holder));
+            else
+                readyResponses.push_back(std::move(holder));
+        }
+    }
+    for (auto const& holder : readyResponses)
+        ChatReplyAction::ChatReplyDo(bot, holder.m_type, holder.m_guid1, holder.m_guid2, holder.m_msg, holder.m_chanName, holder.m_name);
+]==])
+file(WRITE "${_lifecycle_dir}/chat_queue_block.inc" [==[    std::vector<ChatQueuedReply> readyResponses;
+    {
+        std::scoped_lock lock(chatRepliesMutex);
+        // Drain only the current batch. Never hold a bot's reply mutex while
+        // broadcasting: delivery may enqueue a reply on another updating bot.
+        for (std::size_t remaining = chatReplies.size(); remaining; --remaining)
+        {
+            ChatQueuedReply holder = std::move(chatReplies.front());
+            chatReplies.pop();
+            if (holder.m_time && time(0) < holder.m_time)
+                chatReplies.push(std::move(holder));
+            else
+                readyResponses.push_back(std::move(holder));
+        }
+    }
+    for (auto const& holder : readyResponses)
+        ChatReplyAction::ChatReplyDo(bot, holder.m_type, holder.m_guid1, holder.m_guid2, holder.m_msg, holder.m_chanName, holder.m_name);
+]==])
 file(WRITE "${_lifecycle_dir}/PlayerbotAI.cpp.in" "${_lifecycle_text}")
 configure_file("${_lifecycle_dir}/PlayerbotAI.cpp.in" "${_lifecycle_dir}/PlayerbotAI.cpp" COPYONLY)
 get_target_property(_lifecycle_sources playerbots SOURCES)

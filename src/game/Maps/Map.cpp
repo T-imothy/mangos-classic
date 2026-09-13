@@ -813,6 +813,7 @@ void Map::GetPlayerbotAIObjectStats(uint64& aiObjects, uint64& strategies, uint6
 void Map::Update(const uint32& t_diff)
 {
     auto const channelCostBefore = ManTech::channelCost;
+    auto const mapCpuStarted = ManTech::ReadThreadCpu();
     ManTech::IdleBotCostSample idleCost;
     uint32 idleWaitMs = 0;
     s_watchdogMapId.store(GetId(), std::memory_order_relaxed);
@@ -1471,18 +1472,25 @@ void Map::Update(const uint32& t_diff)
     s_watchdogPhase.store(12, std::memory_order_relaxed);
 
     const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceMapStart, WorldTimer::getMSTime());
+    auto const mapCpu = ManTech::CpuDelta(ManTech::ReadThreadCpu(), mapCpuStarted);
     UpdateAdaptiveLoad(performanceTotalElapsed);
 
     if (performanceLogging)
     {
         if (performanceTotalElapsed >= 200)
-            sLog.outPerformance("MAP_COST_SPIKE map=%u instance=%u total_ms=%u bot_ms=%u idle_wait_ms=%u idle_work_us=%llu map_chat_us=%llu idle_chat_us=%llu map_broadcasts=%llu idle_broadcasts=%llu bot_full=%u bot_minimal=%u",
+            sLog.outPerformance("MAP_COST_SPIKE map=%u instance=%u total_ms=%u bot_ms=%u idle_wait_ms=%u idle_work_us=%llu map_chat_us=%llu idle_chat_us=%llu map_broadcasts=%llu idle_broadcasts=%llu bot_full=%u bot_minimal=%u map_cpu_us=%llu idle_cpu_us=%llu map_cycles=%llu idle_cycles=%llu chat_cpu_us=%llu idle_chat_cpu_us=%llu",
                 GetId(), GetInstanceId(), performanceTotalElapsed, performanceBotElapsed, idleWaitMs,
                 static_cast<unsigned long long>(idleCost.elapsedUs),
                 static_cast<unsigned long long>(ManTech::channelCost.microseconds - channelCostBefore.microseconds),
                 static_cast<unsigned long long>(idleCost.chat.microseconds),
                 static_cast<unsigned long long>(ManTech::channelCost.calls - channelCostBefore.calls),
-                static_cast<unsigned long long>(idleCost.chat.calls), performanceFullBotUpdates, performanceMinimalBotUpdates);
+                static_cast<unsigned long long>(idleCost.chat.calls), performanceFullBotUpdates, performanceMinimalBotUpdates,
+                static_cast<unsigned long long>(mapCpu.microseconds),
+                static_cast<unsigned long long>(idleCost.cpu.microseconds),
+                static_cast<unsigned long long>(mapCpu.cycles),
+                static_cast<unsigned long long>(idleCost.cpu.cycles),
+                static_cast<unsigned long long>(ManTech::channelCost.cpuMicroseconds - channelCostBefore.cpuMicroseconds),
+                static_cast<unsigned long long>(idleCost.chat.cpuMicroseconds));
         const uint32 slowMapThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS);
         const uint32 slowBotThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_BOT_MS);
         if (performanceTotalElapsed >= slowMapThreshold || performanceBotElapsed >= slowBotThreshold)
@@ -1511,14 +1519,20 @@ void Map::Update(const uint32& t_diff)
                     performancePlayerCount, performanceBotCount, performanceFullBotUpdates, performanceMinimalBotUpdates,
                     performanceDueMinimalBotUpdates, performanceDeferredMinimalBotUpdates, performanceSkippedMinimalBotUpdates,
                     static_cast<unsigned long long>(count), t_diff);
-                sLog.outPerformance("MAP_CHAT_COST map=%u instance=%u total_ms=%u chat_us=%llu broadcasts=%llu recipient_visits=%llu idle_wait_ms=%u idle_work_us=%llu idle_chat_us=%llu idle_broadcasts=%llu",
+                sLog.outPerformance("MAP_CHAT_COST map=%u instance=%u total_ms=%u chat_us=%llu broadcasts=%llu recipient_visits=%llu idle_wait_ms=%u idle_work_us=%llu idle_chat_us=%llu idle_broadcasts=%llu map_cpu_us=%llu idle_cpu_us=%llu map_cycles=%llu idle_cycles=%llu chat_cpu_us=%llu idle_chat_cpu_us=%llu",
                     GetId(), GetInstanceId(), performanceTotalElapsed,
                     static_cast<unsigned long long>(ManTech::channelCost.microseconds - channelCostBefore.microseconds),
                     static_cast<unsigned long long>(ManTech::channelCost.calls - channelCostBefore.calls),
                     static_cast<unsigned long long>(ManTech::channelCost.recipients - channelCostBefore.recipients), idleWaitMs,
                     static_cast<unsigned long long>(idleCost.elapsedUs),
                     static_cast<unsigned long long>(idleCost.chat.microseconds),
-                    static_cast<unsigned long long>(idleCost.chat.calls));
+                    static_cast<unsigned long long>(idleCost.chat.calls),
+                static_cast<unsigned long long>(mapCpu.microseconds),
+                static_cast<unsigned long long>(idleCost.cpu.microseconds),
+                static_cast<unsigned long long>(mapCpu.cycles),
+                static_cast<unsigned long long>(idleCost.cpu.cycles),
+                static_cast<unsigned long long>(ManTech::channelCost.cpuMicroseconds - channelCostBefore.cpuMicroseconds),
+                static_cast<unsigned long long>(idleCost.chat.cpuMicroseconds));
                 m_LastSlowMapDetailMs = now;
                 m_SuppressedSlowMapDetails = 0;
                 m_PeakSuppressedSlowMapMs = 0;

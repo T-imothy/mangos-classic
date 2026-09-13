@@ -162,6 +162,7 @@ class IdleBotAIUpdateWorker : public Worker
         void execute() override
         {
             auto const started = std::chrono::steady_clock::now();
+            auto const cpuStarted = ManTech::ReadThreadCpu();
             auto const before = ManTech::channelCost;
             for (size_t i = 0; i < m_count; ++i)
             {
@@ -190,6 +191,8 @@ class IdleBotAIUpdateWorker : public Worker
             m_cost.chat.microseconds = ManTech::channelCost.microseconds - before.microseconds;
             m_cost.chat.calls = ManTech::channelCost.calls - before.calls;
             m_cost.chat.recipients = ManTech::channelCost.recipients - before.recipients;
+            m_cost.chat.cpuMicroseconds = ManTech::channelCost.cpuMicroseconds - before.cpuMicroseconds;
+            m_cost.cpu = ManTech::CpuDelta(ManTech::ReadThreadCpu(), cpuStarted);
             m_cost.elapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(
                 std::chrono::steady_clock::now() - started).count();
             m_group.Done();
