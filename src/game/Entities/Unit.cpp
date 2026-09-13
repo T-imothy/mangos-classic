@@ -335,6 +335,7 @@ Unit::Unit() :
     m_auraUpdateMask(0),
     m_combatManager(this)
 {
+    ManTech::MemoryLedger::Add(ManTech::MemoryKind::Units, sizeof(Unit));
     m_objectType |= TYPEMASK_UNIT;
     m_objectTypeId = TYPEID_UNIT;
     m_updateFlag = (UPDATEFLAG_ALL | UPDATEFLAG_LIVING | UPDATEFLAG_HAS_POSITION);
@@ -441,6 +442,7 @@ Unit::Unit() :
 
 Unit::~Unit()
 {
+    ManTech::MemoryLedger::Remove(ManTech::MemoryKind::Units, sizeof(Unit));
     // set current spells as deletable
     for (auto& m_currentSpell : m_currentSpells)
     {
@@ -4921,7 +4923,7 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
 void Unit::AddAuraToModList(Aura* aura)
 {
     if (aura->GetModifier()->m_auraname < TOTAL_AURAS)
-        m_modAuras[aura->GetModifier()->m_auraname].push_back(aura);
+        m_modAuras.Mutable(aura->GetModifier()->m_auraname).push_back(aura);
 }
 
 void Unit::RemoveRankAurasDueToSpell(uint32 spellId)
@@ -5456,7 +5458,7 @@ void Unit::RemoveAura(Aura* Aur, AuraRemoveMode mode)
     // remove from list before mods removing (prevent cyclic calls, mods added before including to aura list - use reverse order)
     if (Aur->GetModifier()->m_auraname < TOTAL_AURAS)
     {
-        m_modAuras[Aur->GetModifier()->m_auraname].remove(Aur);
+        m_modAuras.Mutable(Aur->GetModifier()->m_auraname).remove(Aur);
     }
 
     // Set remove mode
@@ -5577,7 +5579,7 @@ void Unit::_ApplyAllAuraMods()
 
 bool Unit::HasAuraType(AuraType auraType) const
 {
-    return !GetAurasByType(auraType).empty();
+    return !m_modAuras[auraType].empty();
 }
 
 bool Unit::HasAffectedAura(AuraType auraType, SpellEntry const* spellInfo) const
@@ -8347,7 +8349,9 @@ void Unit::UpdateVisibilityAndView()
     static const AuraType auratypes[] = {SPELL_AURA_BIND_SIGHT, SPELL_AURA_FAR_SIGHT, SPELL_AURA_NONE};
     for (AuraType const* type = &auratypes[0]; *type != SPELL_AURA_NONE; ++type)
     {
-        AuraList& alist = m_modAuras[*type];
+        if (m_modAuras[*type].empty())
+            continue;
+        AuraList& alist = m_modAuras.Mutable(*type);
         if (alist.empty())
             continue;
 
@@ -9419,7 +9423,7 @@ void Unit::ApplyMaxPowerMod(Powers power, uint32 val, bool apply)
 
 void Unit::ApplyAuraProcTriggerDamage(Aura* aura, bool apply)
 {
-    AuraList& tAuraProcTriggerDamage = m_modAuras[SPELL_AURA_PROC_TRIGGER_DAMAGE];
+    AuraList& tAuraProcTriggerDamage = m_modAuras.Mutable(SPELL_AURA_PROC_TRIGGER_DAMAGE);
     if (apply)
         tAuraProcTriggerDamage.push_back(aura);
     else

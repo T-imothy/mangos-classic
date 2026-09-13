@@ -26,6 +26,7 @@
 #ifndef __UNIT_H
 #define __UNIT_H
 
+#include "Memory/SparseListArray.h"
 #include "Common.h"
 #include "Entities/Object.h"
 #include "Server/Opcodes.h"
@@ -2105,7 +2106,7 @@ class Unit : public WorldObject
 
         SpellAuraHolderMap&       GetSpellAuraHolderMap()       { return m_spellAuraHolders; }
         SpellAuraHolderMap const& GetSpellAuraHolderMap() const { return m_spellAuraHolders; }
-        AuraList const& GetAurasByType(AuraType type) const { return m_modAuras[type]; }
+        AuraList const& GetAurasByType(AuraType type) const { return m_modAuras.Stable(type); }
         void ApplyAuraProcTriggerDamage(Aura* aura, bool apply);
 
         int32 GetTotalAuraModifier(AuraType auratype) const;
@@ -2504,7 +2505,7 @@ class Unit : public WorldObject
 
         std::map<uint32, Creature*> m_creatures;
 
-        AuraList m_modAuras[TOTAL_AURAS];
+        ManTech::SparseListArray<Aura*, TOTAL_AURAS> m_modAuras;
         float m_auraModifiersGroup[UNIT_MOD_END][MODIFIER_TYPE_END];
 
         enum class AttackPowerMod
