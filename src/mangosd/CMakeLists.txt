@@ -59,6 +59,13 @@ target_link_libraries(${EXECUTABLE_NAME}
   cmangos-compile-option-interface
 )
 
+if(MANTECH_USE_MIMALLOC)
+  target_sources(${EXECUTABLE_NAME} PRIVATE Arch4Allocator.cpp)
+  target_link_libraries(${EXECUTABLE_NAME} mimalloc-static)
+  target_link_libraries(game PRIVATE mimalloc-static)
+  target_compile_definitions(game PRIVATE MANTECH_USE_MIMALLOC=1)
+endif()
+
 if(WIN32)
   target_link_libraries(${EXECUTABLE_NAME}
     winmm

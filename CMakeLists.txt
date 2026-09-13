@@ -424,6 +424,8 @@ if(UNIX)
   add_compile_definitions(SYSCONFDIR="../${CONF_FOLDER_NAME}/")
 endif()
 
+include(cmake/Arch4Allocator.cmake)
+
 if(BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER OR BUILD_EXTRACTORS)
   add_subdirectory(src)
 endif()
@@ -473,3 +475,9 @@ endif()
 # if(SQL)
 #   add_subdirectory(sql)
 # endif()
+
+option(MANTECH_BUILD_ARCH4_TESTS "Build native Arch 4 regression tests" OFF)
+if(MANTECH_BUILD_ARCH4_TESTS AND BUILD_GAME_SERVER)
+  enable_testing()
+  add_subdirectory(tests/arch4)
+endif()
