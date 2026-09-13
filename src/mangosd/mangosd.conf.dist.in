@@ -2074,3 +2074,7 @@ Dummy.Debug2 = 0
 # Reloading configuration applies to future requests; an initiated transfer may finish.
 PlayerTravel.Enabled = 0
 PlayerTravel.CooldownSeconds = 300
+
+# Arch 4: includes posted, queued and in-flight payloads. Exhaustion disconnects the receiver.
+Network.MaxPendingWriteKiB = 8192
+Network.MaxGlobalPendingWriteKiB = 262144

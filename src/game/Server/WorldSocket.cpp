@@ -135,13 +135,13 @@ void WorldSocket::SendPacket(const WorldPacket& pct)
         std::memcpy(fullMessage->data(), header.data(), header.headerSize()); // copy header
         std::memcpy((fullMessage->data() + header.headerSize()), reinterpret_cast<const char*>(pct.contents()), pct.size()); // copy packet
         auto self(shared_from_this());
-        Write(fullMessage->data(), fullMessage->size(), [self, fullMessage](const boost::system::error_code& /*error*/, std::size_t /*written*/) {});
+        Write(fullMessage->data(), fullMessage->size(), [self](const boost::system::error_code& /*error*/, std::size_t /*written*/) {});
     }
     else
     {
         std::shared_ptr<ServerPktHeader> sharedHeader = std::make_shared<ServerPktHeader>(header);
         auto self(shared_from_this());
-        Write(sharedHeader->data(), sharedHeader->headerSize(), [self, sharedHeader](const boost::system::error_code& /*error*/, std::size_t /*written*/) {});
+        Write(sharedHeader->data(), sharedHeader->headerSize(), [self](const boost::system::error_code& /*error*/, std::size_t /*written*/) {});
     }
 }
 
