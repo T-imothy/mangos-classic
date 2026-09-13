@@ -102,6 +102,8 @@ CreatureEventAI::CreatureEventAI(Creature* creature) : CreatureAI(creature),
 void CreatureEventAI::InitAI()
 {
     m_CreatureEventAIList.clear();
+    m_entryDefinitions = m_creature->GetMap()->GetMapDataContainer().GetCreatureEventEntryAIMap();
+    m_guidDefinitions = m_creature->GetMap()->GetMapDataContainer().GetCreatureEventGuidAIMap();
 
     auto processMap = [&](const CreatureEventAI_Event_Vec& creatureEvent)
     {
@@ -146,16 +148,16 @@ void CreatureEventAI::InitAI()
         }
     };
 
-    // Need make copy for filter unneeded steps and safe in case table reload
-    auto creatureEventsItr = m_creature->GetMap()->GetMapDataContainer().GetCreatureEventEntryAIMap()->find(m_creature->GetEntry());
-    if (creatureEventsItr != m_creature->GetMap()->GetMapDataContainer().GetCreatureEventEntryAIMap()->end())
+    // Filter execution state while pinned definitions remain valid across table reloads.
+    auto creatureEventsItr = m_entryDefinitions->find(m_creature->GetEntry());
+    if (creatureEventsItr != m_entryDefinitions->end())
     {
         const CreatureEventAI_Event_Vec& creatureEvent = creatureEventsItr->second;
         processMap(creatureEvent);
     }
 
-    auto creatureEventsGuidItr = m_creature->GetMap()->GetMapDataContainer().GetCreatureEventGuidAIMap()->find(m_creature->GetDbGuid());
-    if (creatureEventsGuidItr != m_creature->GetMap()->GetMapDataContainer().GetCreatureEventGuidAIMap()->end())
+    auto creatureEventsGuidItr = m_guidDefinitions->find(m_creature->GetDbGuid());
+    if (creatureEventsGuidItr != m_guidDefinitions->end())
     {
         const CreatureEventAI_Event_Vec& creatureEvent = creatureEventsGuidItr->second;
         processMap(creatureEvent);
