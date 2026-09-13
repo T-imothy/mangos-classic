@@ -1,4 +1,3 @@
-option(MANTECH_PROFILE_ALLOCATIONS "Build sampled Windows C++ allocation profiler (diagnostic only)" OFF)
 # Pinned, optional allocator for reproducible Arch 4 comparisons.
 option(MANTECH_USE_MIMALLOC "Use mimalloc for world-server C++ allocations" OFF)
 if(MANTECH_USE_MIMALLOC AND BUILD_GAME_SERVER)

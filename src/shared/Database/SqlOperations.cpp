@@ -79,17 +79,6 @@ SqlPreparedRequest::~SqlPreparedRequest()
     delete m_param;
 }
 
-std::size_t SqlPreparedRequest::RetainedBytes() const
-{
-    // String capacity is an upper bound because small strings can be inline.
-    std::size_t bytes = sizeof(*this);
-    if (m_param) {
-        bytes += sizeof(*m_param) + m_param->params().capacity()*sizeof(SqlStmtFieldData);
-        for (auto const& field : m_param->params()) bytes += field.StringCapacity();
-    }
-    return bytes;
-}
-
 bool SqlPreparedRequest::Execute(SqlConnection* conn)
 {
     LOCK_DB_CONN(conn);

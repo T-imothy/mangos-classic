@@ -60,10 +60,7 @@ target_link_libraries(${EXECUTABLE_NAME}
 )
 
 if(MANTECH_USE_MIMALLOC)
-  if(NOT MANTECH_PROFILE_ALLOCATIONS)
-    target_sources(${EXECUTABLE_NAME} PRIVATE Arch4Allocator.cpp)
-  endif()
-  target_compile_definitions(${EXECUTABLE_NAME} PRIVATE MANTECH_USE_MIMALLOC=1)
+  target_sources(${EXECUTABLE_NAME} PRIVATE Arch4Allocator.cpp)
   target_link_libraries(${EXECUTABLE_NAME} mimalloc-static)
   target_link_libraries(game PRIVATE mimalloc-static)
   target_compile_definitions(game PRIVATE MANTECH_USE_MIMALLOC=1)
@@ -160,12 +157,3 @@ endif()
 
 install(FILES ${CMAKE_SOURCE_DIR}/src/game/Anticheat/module/anticheat.conf.dist.in DESTINATION ${CONF_DIR} RENAME anticheat.conf.dist)
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/game/Anticheat/module/warden_modules DESTINATION ${BIN_DIR})
-
-
-if(MANTECH_PROFILE_ALLOCATIONS)
-  if(NOT WIN32)
-    message(FATAL_ERROR "The sampled allocation profiler currently requires Windows")
-  endif()
-  target_sources(${EXECUTABLE_NAME} PRIVATE AllocationProfile.cpp)
-  target_link_libraries(${EXECUTABLE_NAME} dbghelp)
-endif()
