@@ -21,6 +21,7 @@
 */
 
 #include "Memory/MemoryLedger.h"
+#include "Memory/AllocationProfile.h"
 #include "Memory/EntityLedger.h"
 #ifdef MANTECH_USE_MIMALLOC
 #include <mimalloc-stats.h>
@@ -971,6 +972,8 @@ void World::LoadConfigSettings(bool reload)
 /// Initialize the World
 void World::SetInitialWorldSettings()
 {
+    if (sConfig.GetBoolDefault("Memory.SampleAllocations", false))
+        ManTech::StartAllocationProfile();
     ///- Initialize the random number generator
     srand((unsigned int)time(nullptr));
 
@@ -2027,6 +2030,7 @@ void World::Update(uint32 diff)
             }
 
             // Requested payload bytes only; allocator metadata/capacity is reported separately.
+            ManTech::WriteAllocationProfile();
             for (unsigned kind = 0; kind < static_cast<unsigned>(ManTech::MemoryKind::Count); ++kind)
             {
                 auto memory = ManTech::MemoryLedger::Read(static_cast<ManTech::MemoryKind>(kind));

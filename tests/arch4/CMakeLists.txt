@@ -50,3 +50,23 @@ target_link_libraries(arch4_chat_queue_tests PRIVATE cmangos-compile-option-inte
 add_test(NAME arch4_chat_queue COMMAND arch4_chat_queue_tests)
 set_tests_properties(arch4_chat_queue PROPERTIES TIMEOUT 10)
 endif()
+
+add_executable(arch4_storage_tests storage_tests.cpp)
+target_compile_features(arch4_storage_tests PRIVATE cxx_std_20)
+target_include_directories(arch4_storage_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/shared)
+target_link_libraries(arch4_storage_tests PRIVATE cmangos-compile-option-interface)
+add_test(NAME arch4_storage COMMAND arch4_storage_tests)
+
+add_executable(arch4_resource_tests resource_tests.cpp)
+target_link_libraries(arch4_resource_tests PRIVATE game shared g3dlite Detour cmangos-compile-option-interface)
+add_test(NAME arch4_resources COMMAND arch4_resource_tests)
+set_tests_properties(arch4_resources PROPERTIES WORKING_DIRECTORY "$<TARGET_FILE_DIR:mangosd>" TIMEOUT 60)
+
+if(WIN32 AND MANTECH_PROFILE_ALLOCATIONS)
+  add_executable(arch4_profile_tests profile_tests.cpp ${PROJECT_SOURCE_DIR}/src/mangosd/AllocationProfile.cpp)
+  target_include_directories(arch4_profile_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/shared)
+  target_link_libraries(arch4_profile_tests PRIVATE dbghelp cmangos-compile-option-interface)
+  file(MAKE_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/profile-fixture")
+  add_test(NAME arch4_profile COMMAND arch4_profile_tests)
+  set_tests_properties(arch4_profile PROPERTIES WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/profile-fixture" TIMEOUT 60)
+endif()

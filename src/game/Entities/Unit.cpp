@@ -367,8 +367,6 @@ Unit::Unit() :
     m_transform = 0;
     m_canModifyStats = false;
 
-    for (auto& i : m_spellImmune)
-        i.clear();
     for (auto& i : m_auraModifiersGroup)
     {
         i[BASE_VALUE] = 0.0f;
@@ -5881,19 +5879,20 @@ void Unit::RemoveAllGameObjects()
 
 void Unit::AddCreature(uint32 spellId, Creature* creature)
 {
-    m_creatures.emplace(spellId, creature);
+    m_creatures.Get().emplace(spellId, creature);
 }
 
 void Unit::RemoveCreature(uint32 spellId, bool del)
 {
     if (del)
     {
-        auto itr = m_creatures.find(spellId);
-        if (itr != m_creatures.end())
+        auto const& creatures = m_creatures.Read();
+        auto itr = creatures.find(spellId);
+        if (itr != creatures.end())
             itr->second->ForcedDespawn();
     }
 
-    m_creatures.erase(spellId);
+    m_creatures.Get().erase(spellId);
 }
 
 void Unit::SendSpellNonMeleeDamageLog(SpellNonMeleeDamage* log)
@@ -7383,13 +7382,13 @@ int32 Unit::SpellBaseHealingBonusTaken(SpellSchoolMask schoolMask) const
 bool Unit::IsImmuneToDamage(SpellSchoolMask shoolMask)
 {
     // If m_immuneToSchool type contain this school type, IMMUNE damage.
-    SpellImmuneList const& schoolList = m_spellImmune[IMMUNITY_SCHOOL];
+    SpellImmuneList const& schoolList = m_spellImmune.Read(IMMUNITY_SCHOOL);
     for (auto itr : schoolList)
         if (itr.type & shoolMask)
             return true;
 
     // If m_immuneToDamage type contain magic, IMMUNE damage.
-    SpellImmuneList const& damageList = m_spellImmune[IMMUNITY_DAMAGE];
+    SpellImmuneList const& damageList = m_spellImmune.Read(IMMUNITY_DAMAGE);
     for (auto itr : damageList)
         if (itr.type & shoolMask)
             return true;
@@ -7403,9 +7402,9 @@ bool Unit::IsImmuneToSpell(SpellEntry const* spellInfo, bool /*castOnSelf*/, uin
         return false;
 
     // TODO add spellEffect immunity checks!, player with flag in bg is immune to immunity buffs from other friendly players!
-    // SpellImmuneList const& dispelList = m_spellImmune[IMMUNITY_EFFECT];
+    // SpellImmuneList const& dispelList = m_spellImmune.Read(IMMUNITY_EFFECT);
 
-    SpellImmuneList const& dispelList = m_spellImmune[IMMUNITY_DISPEL];
+    SpellImmuneList const& dispelList = m_spellImmune.Read(IMMUNITY_DISPEL);
     for (auto itr : dispelList)
         if (itr.type == spellInfo->Dispel)
             return true;
@@ -7417,7 +7416,7 @@ bool Unit::IsImmuneToSpell(SpellEntry const* spellInfo, bool /*castOnSelf*/, uin
             if (spellInfo->HasAttribute(SPELL_ATTR_AURA_IS_DEBUFF))
                 isPositive = false;
         }
-        SpellImmuneList const& schoolList = m_spellImmune[IMMUNITY_SCHOOL];
+        SpellImmuneList const& schoolList = m_spellImmune.Read(IMMUNITY_SCHOOL);
         for (auto itr : schoolList)
             if ((itr.type & GetSpellSchoolMask(spellInfo)) && !(itr.aura && itr.aura->IsPositive() && isPositive) && !CanPierceImmuneAura(spellInfo, itr.aura ? itr.aura->GetSpellProto() : nullptr, effectMask, itr.aura ? itr.aura->GetEffIndex() : EFFECT_INDEX_0))
                 return true;
@@ -7425,7 +7424,7 @@ bool Unit::IsImmuneToSpell(SpellEntry const* spellInfo, bool /*castOnSelf*/, uin
 
     if (uint32 mechanic = spellInfo->Mechanic)
     {
-        SpellImmuneList const& mechanicList = m_spellImmune[IMMUNITY_MECHANIC];
+        SpellImmuneList const& mechanicList = m_spellImmune.Read(IMMUNITY_MECHANIC);
         for (auto itr : mechanicList)
             if (itr.type == mechanic)
                 return true;
@@ -7446,14 +7445,14 @@ bool Unit::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex i
 
     // If m_immuneToEffect type contain this effect type, IMMUNE effect.
     uint32 effect = spellInfo->Effect[index];
-    SpellImmuneList const& effectList = m_spellImmune[IMMUNITY_EFFECT];
+    SpellImmuneList const& effectList = m_spellImmune.Read(IMMUNITY_EFFECT);
     for (auto itr : effectList)
         if (itr.type == effect)
             return true;
 
     if (uint32 mechanic = spellInfo->EffectMechanic[index])
     {
-        SpellImmuneList const& mechanicList = m_spellImmune[IMMUNITY_MECHANIC];
+        SpellImmuneList const& mechanicList = m_spellImmune.Read(IMMUNITY_MECHANIC);
         for (auto itr : mechanicList)
             if (itr.type == mechanic)
                 return true;
@@ -7466,7 +7465,7 @@ bool Unit::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex i
 
     if (uint32 aura = spellInfo->EffectApplyAuraName[index])
     {
-        SpellImmuneList const& list = m_spellImmune[IMMUNITY_STATE];
+        SpellImmuneList const& list = m_spellImmune.Read(IMMUNITY_STATE);
         for (auto itr : list)
             if (itr.type == aura)
                 return true;
@@ -7476,7 +7475,7 @@ bool Unit::IsImmuneToSpellEffect(SpellEntry const* spellInfo, SpellEffectIndex i
 
 bool Unit::IsImmuneToSchool(SpellEntry const* spellInfo, uint8 effectMask) const
 {
-    SpellImmuneList const& schoolList = m_spellImmune[IMMUNITY_SCHOOL];
+    SpellImmuneList const& schoolList = m_spellImmune.Read(IMMUNITY_SCHOOL);
     for (auto itr : schoolList)
     {
         if (itr.aura && itr.aura->GetSpellProto() == spellInfo) // do not let itself immune out - fixes 39872 - Tidal Shield
@@ -12053,21 +12052,23 @@ float Unit::GetCollisionWidth() const
 
 bool Unit::HasOverrideScript(uint32 id) const
 {
-    return m_classScripts.find(id) != m_classScripts.end();
+    auto const& scripts = m_classScripts.Read();
+    return scripts.find(id) != scripts.end();
 }
 
 Aura* Unit::GetOverrideScript(uint32 id) const
 {
-    auto itr = m_classScripts.find(id);
-    return itr == m_classScripts.end() ? nullptr : (*itr).second;
+    auto const& scripts = m_classScripts.Read();
+    auto itr = scripts.find(id);
+    return itr == scripts.end() ? nullptr : (*itr).second;
 }
 
 void Unit::RegisterOverrideScriptAura(Aura* aura, uint32 id, bool apply)
 {
     if (apply)
-        m_classScripts.insert({ id, aura });
+        m_classScripts.Get().insert({ id, aura });
     else
-        m_classScripts.erase(id);
+        m_classScripts.Get().erase(id);
 }
 
 void Unit::RegisterScriptedLocationAura(Aura* aura, AuraScriptLocation location, bool apply)

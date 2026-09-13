@@ -5,7 +5,7 @@
 #include <cstdint>
 #include <cstddef>
 namespace ManTech {
-enum class MemoryKind : std::size_t { Units, AuraBuckets, UpdateFields, EventHolders, NavTiles, NavShared, Network, Count };
+enum class MemoryKind : std::size_t { Units, AuraBuckets, UpdateFields, EventHolders, NavTiles, NavShared, Network, OptionalState, PathScratch, Terrain, DatabaseWork, Collision, NavQueries, Count };
 struct MemorySample { std::uint64_t count, bytes, peak; };
 class MemoryLedger {
     struct Counter { std::atomic<std::uint64_t> count{0}, bytes{0}, peak{0}; };

@@ -2078,3 +2078,13 @@ PlayerTravel.CooldownSeconds = 300
 # Arch 4: includes posted, queued and in-flight payloads. Exhaustion disconnects the receiver.
 Network.MaxPendingWriteKiB = 8192
 Network.MaxGlobalPendingWriteKiB = 262144
+
+# Maximum unreferenced terrain payload retained per map between normal cleanup
+# passes. Checked once per second at the existing worker barrier; referenced
+# terrain is never evicted. Collision references unload with eligible terrain.
+Memory.InactiveTerrainBudgetMB = 64
+
+# Diagnostic only; requires MANTECH_PROFILE_ALLOCATIONS at build time.
+# Samples C++ allocations, writes bounded stack tables to arch4-heap-*.tsv.
+# Adds runtime overhead. Leave off for ordinary performance comparisons.
+Memory.SampleAllocations = 0

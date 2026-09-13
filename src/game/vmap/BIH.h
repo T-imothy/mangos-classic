@@ -81,6 +81,7 @@ class BIH
         }
 
     public:
+        std::size_t DynamicBytes() const { return (tree.capacity()+objects.capacity())*sizeof(uint32); }
         BIH() {init_empty();}
         template< class BoundsFunc, class PrimArray >
         void build(const PrimArray& primitives, BoundsFunc& getBounds, uint32 leafSize = 3, bool printStats = false)
