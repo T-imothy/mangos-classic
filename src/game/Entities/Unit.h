@@ -27,6 +27,7 @@
 #define __UNIT_H
 
 #include "Memory/SparseListArray.h"
+#include "Memory/LazyStorage.h"
 #include "Common.h"
 #include "Entities/Object.h"
 #include "Server/Opcodes.h"
@@ -2067,7 +2068,7 @@ class Unit : public WorldObject
 
         TrackedAuraTargetMap&       GetTrackedAuraTargets(TrackedAuraType type)       { return m_trackedAuraTargets[type]; }
         TrackedAuraTargetMap const& GetTrackedAuraTargets(TrackedAuraType type) const { return m_trackedAuraTargets[type]; }
-        SpellImmuneList m_spellImmune[MAX_SPELL_IMMUNITY];
+        ManTech::LazyStorageArray<SpellImmuneList, MAX_SPELL_IMMUNITY> m_spellImmune;
         bool IsAOEImmune() const { return m_aoeImmune; }
         void SetAOEImmune(bool state) { m_aoeImmune = state; }
         bool IsChainImmune() const { return m_chainImmune; }
@@ -2489,11 +2490,11 @@ class Unit : public WorldObject
         SpellAuraHolderMap::iterator m_spellAuraHoldersUpdateIterator; // != end() in Unit::m_spellAuraHolders update and point to next element
         AuraList m_deletedAuras;                            // auras removed while in ApplyModifier and waiting deleted
         SpellAuraHolderList m_deletedHolders;
-        std::map<uint32, Aura*> m_classScripts;
-        std::vector<Aura*> m_scriptedLocations[SCRIPT_LOCATION_MAX];
+        ManTech::LazyStorage<std::map<uint32, Aura*>> m_classScripts;
+        ManTech::LazyStorageArray<std::vector<Aura*>, SCRIPT_LOCATION_MAX> m_scriptedLocations;
 
         // Store Auras for which the target must be tracked
-        TrackedAuraTargetMap m_trackedAuraTargets[MAX_TRACKED_AURA_TYPES];
+        ManTech::LazyStorageArray<TrackedAuraTargetMap, MAX_TRACKED_AURA_TYPES> m_trackedAuraTargets;
 
         GuidList m_dynObjGUIDs;
 
@@ -2503,7 +2504,7 @@ class Unit : public WorldObject
         bool m_isSorted;
         uint32 m_transform;
 
-        std::map<uint32, Creature*> m_creatures;
+        ManTech::LazyStorage<std::map<uint32, Creature*>> m_creatures;
 
         ManTech::SparseListArray<Aura*, TOTAL_AURAS> m_modAuras;
         float m_auraModifiersGroup[UNIT_MOD_END][MODIFIER_TYPE_END];
