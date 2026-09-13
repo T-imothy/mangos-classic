@@ -16,6 +16,7 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "Memory/EntityLedger.h"
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
 #include "Server/WorldPacket.h"
@@ -260,6 +261,7 @@ Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* curr
     m_isPersistent(false), m_magnetUsed(false), m_spellAuraHolder(holder),
     m_scriptValue(0), m_storage(nullptr), m_affectOverriden(false), m_scriptRef(this, NoopAuraDeleter())
 {
+    ManTech::EntityLedger::Add(ManTech::EntityKind::AuraEffects);
     MANGOS_ASSERT(target);
     MANGOS_ASSERT(spellproto && spellproto == sSpellTemplate.LookupEntry<SpellEntry>(spellproto->Id) && "`info` must be pointer to sSpellTemplate element");
 
@@ -291,6 +293,7 @@ Aura::Aura(SpellEntry const* spellproto, SpellEffectIndex eff, int32 const* curr
 
 Aura::~Aura()
 {
+    ManTech::EntityLedger::Remove(ManTech::EntityKind::AuraEffects);
     delete m_storage;
     delete m_spellmod;
 }
@@ -5174,6 +5177,7 @@ SpellAuraHolder::SpellAuraHolder(SpellEntry const* spellproto, Unit* target, Wor
     m_deleted(false), m_skipUpdate(false),
     m_auraScript(SpellScriptMgr::GetAuraScript(spellproto->Id))
 {
+    ManTech::EntityLedger::Add(ManTech::EntityKind::AuraHolders);
     MANGOS_ASSERT(target);
     MANGOS_ASSERT(spellproto && spellproto == sSpellTemplate.LookupEntry<SpellEntry>(spellproto->Id) && "`info` must be pointer to sSpellTemplate element");
 
@@ -5669,6 +5673,7 @@ void Aura::HandleAuraSafeFall(bool /*Apply*/, bool /*Real*/)
 
 SpellAuraHolder::~SpellAuraHolder()
 {
+    ManTech::EntityLedger::Remove(ManTech::EntityKind::AuraHolders);
     // note: auras in delete list won't be affected since they clear themselves from holder when adding to deletedAuraslist
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
         delete m_auras[i];

@@ -20,6 +20,11 @@
     \ingroup world
 */
 
+#include "Memory/MemoryLedger.h"
+#include "Memory/EntityLedger.h"
+#ifdef MANTECH_USE_MIMALLOC
+#include <mimalloc-stats.h>
+#endif
 #include "World/World.h"
 #include "Database/DatabaseEnv.h"
 #include "Config/Config.h"
@@ -2004,6 +2009,30 @@ void World::Update(uint32 diff)
                 getConfig(CONFIG_UINT32_INTERVAL_MAPUPDATE),
                 static_cast<unsigned long long>(workingSetMb), static_cast<unsigned long long>(privateMb),
                 pendingCallbacks, pendingDbOperations);
+
+#ifdef MANTECH_USE_MIMALLOC
+            mi_stats_t heapStats;
+            mi_stats_init(&heapStats);
+            if (mi_stats_get(&heapStats))
+                sLog.outPerformance("ARCH4_ALLOCATOR name=mimalloc committed_bytes=%lld reserved_bytes=%lld normal_bytes=%lld huge_bytes=%lld",
+                    static_cast<long long>(heapStats.committed.current), static_cast<long long>(heapStats.reserved.current),
+                    static_cast<long long>(heapStats.malloc_normal.current), static_cast<long long>(heapStats.malloc_huge.current));
+#endif
+
+            for (unsigned i = 0; i < static_cast<unsigned>(ManTech::EntityKind::Count); ++i)
+            {
+                auto kind = static_cast<ManTech::EntityKind>(i);
+                sLog.outPerformance("ARCH4_ENTITIES kind=%s count=%llu", ManTech::EntityLedger::Name(kind),
+                    static_cast<unsigned long long>(ManTech::EntityLedger::Read(kind)));
+            }
+
+            // Requested payload bytes only; allocator metadata/capacity is reported separately.
+            for (unsigned kind = 0; kind < static_cast<unsigned>(ManTech::MemoryKind::Count); ++kind)
+            {
+                auto memory = ManTech::MemoryLedger::Read(static_cast<ManTech::MemoryKind>(kind));
+                sLog.outPerformance("ARCH4_MEMORY kind=%u count=%llu payload_bytes=%llu peak_payload_bytes=%llu",
+                    kind, static_cast<unsigned long long>(memory.count), static_cast<unsigned long long>(memory.bytes), static_cast<unsigned long long>(memory.peak));
+            }
 
             uint64 allocatedGrids = 0;
             uint64 activeGrids = 0;
