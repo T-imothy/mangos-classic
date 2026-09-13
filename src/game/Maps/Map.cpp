@@ -19,6 +19,7 @@
 #include "Maps/Map.h"
 #include "Maps/MapManager.h"
 #include "Maps/MapWorkers.h"
+#include "Util/ChannelCostProbe.h"
 #include "Entities/Player.h"
 #include "Grids/GridNotifiers.h"
 #include "Log/Log.h"
@@ -811,6 +812,9 @@ void Map::GetPlayerbotAIObjectStats(uint64& aiObjects, uint64& strategies, uint6
 
 void Map::Update(const uint32& t_diff)
 {
+    auto const channelCostBefore = ManTech::channelCost;
+    ManTech::IdleBotCostSample idleCost;
+    uint32 idleWaitMs = 0;
     s_watchdogMapId.store(GetId(), std::memory_order_relaxed);
     s_watchdogInstanceId.store(GetInstanceId(), std::memory_order_relaxed);
     s_watchdogPhase.store(1, std::memory_order_relaxed);
@@ -1206,10 +1210,13 @@ void Map::Update(const uint32& t_diff)
         // updater still runs batches from different maps in parallel.
         taskGroup.Add();
         updater.schedule_update(new IdleBotAIUpdateWorker(m_idleBotDispatchUpdates.data(),
-            m_idleBotDispatchUpdates.size(), jitterMs, taskGroup, updater));
+            m_idleBotDispatchUpdates.size(), jitterMs, taskGroup, updater, idleCost));
         taskGroup.Wait();
         if (performanceLogging)
-            performanceBotElapsed += WorldTimer::getMSTimeDiff(parallelBotStart, WorldTimer::getMSTime());
+        {
+            idleWaitMs = WorldTimer::getMSTimeDiff(parallelBotStart, WorldTimer::getMSTime());
+            performanceBotElapsed += idleWaitMs;
+        }
     }
     else
         m_idleBotRoundRobinCursor = 0;
@@ -1468,6 +1475,14 @@ void Map::Update(const uint32& t_diff)
 
     if (performanceLogging)
     {
+        if (performanceTotalElapsed >= 200)
+            sLog.outPerformance("MAP_COST_SPIKE map=%u instance=%u total_ms=%u bot_ms=%u idle_wait_ms=%u idle_work_us=%llu map_chat_us=%llu idle_chat_us=%llu map_broadcasts=%llu idle_broadcasts=%llu bot_full=%u bot_minimal=%u",
+                GetId(), GetInstanceId(), performanceTotalElapsed, performanceBotElapsed, idleWaitMs,
+                static_cast<unsigned long long>(idleCost.elapsedUs),
+                static_cast<unsigned long long>(ManTech::channelCost.microseconds - channelCostBefore.microseconds),
+                static_cast<unsigned long long>(idleCost.chat.microseconds),
+                static_cast<unsigned long long>(ManTech::channelCost.calls - channelCostBefore.calls),
+                static_cast<unsigned long long>(idleCost.chat.calls), performanceFullBotUpdates, performanceMinimalBotUpdates);
         const uint32 slowMapThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_MAP_MS);
         const uint32 slowBotThreshold = sWorld.getConfig(CONFIG_UINT32_PERFORMANCE_LOG_SLOW_BOT_MS);
         if (performanceTotalElapsed >= slowMapThreshold || performanceBotElapsed >= slowBotThreshold)
@@ -1496,6 +1511,14 @@ void Map::Update(const uint32& t_diff)
                     performancePlayerCount, performanceBotCount, performanceFullBotUpdates, performanceMinimalBotUpdates,
                     performanceDueMinimalBotUpdates, performanceDeferredMinimalBotUpdates, performanceSkippedMinimalBotUpdates,
                     static_cast<unsigned long long>(count), t_diff);
+                sLog.outPerformance("MAP_CHAT_COST map=%u instance=%u total_ms=%u chat_us=%llu broadcasts=%llu recipient_visits=%llu idle_wait_ms=%u idle_work_us=%llu idle_chat_us=%llu idle_broadcasts=%llu",
+                    GetId(), GetInstanceId(), performanceTotalElapsed,
+                    static_cast<unsigned long long>(ManTech::channelCost.microseconds - channelCostBefore.microseconds),
+                    static_cast<unsigned long long>(ManTech::channelCost.calls - channelCostBefore.calls),
+                    static_cast<unsigned long long>(ManTech::channelCost.recipients - channelCostBefore.recipients), idleWaitMs,
+                    static_cast<unsigned long long>(idleCost.elapsedUs),
+                    static_cast<unsigned long long>(idleCost.chat.microseconds),
+                    static_cast<unsigned long long>(idleCost.chat.calls));
                 m_LastSlowMapDetailMs = now;
                 m_SuppressedSlowMapDetails = 0;
                 m_PeakSuppressedSlowMapMs = 0;

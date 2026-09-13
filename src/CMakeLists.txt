@@ -43,6 +43,8 @@ if(BUILD_PLAYERBOTS)
   add_subdirectory(${playerbots_SOURCE_DIR} ${CMAKE_BINARY_DIR}/playerbots)
   include("${CMAKE_SOURCE_DIR}/cmake/playerbot_loot_policy.cmake")
   include("${CMAKE_SOURCE_DIR}/cmake/playerbot_map_lifecycle.cmake")
+  include("${CMAKE_SOURCE_DIR}/cmake/playerbot_shuffle.cmake")
+  include("${CMAKE_SOURCE_DIR}/cmake/playerbot_accounts.cmake")
 
 else()
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots)

@@ -27,6 +27,7 @@
 #include "Entities/Player.h"
 #include "Entities/UpdateData.h"
 #include "Platform/Define.h"
+#include "Util/ChannelCostProbe.h"
 
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot/PlayerbotAI.h"
@@ -154,12 +155,14 @@ class IdleBotAIUpdateWorker : public Worker
 {
     public:
         IdleBotAIUpdateWorker(IdleBotAIUpdateRequest const* updates, size_t count, uint32 jitterMs,
-            MapUpdateTaskGroup& group, MapUpdater& updater) :
-            Worker(updater), m_updates(updates), m_count(count), m_jitterMs(jitterMs), m_group(group)
+            MapUpdateTaskGroup& group, MapUpdater& updater, ManTech::IdleBotCostSample& cost) :
+            Worker(updater), m_updates(updates), m_count(count), m_jitterMs(jitterMs), m_group(group), m_cost(cost)
         {}
 
         void execute() override
         {
+            auto const started = std::chrono::steady_clock::now();
+            auto const before = ManTech::channelCost;
             for (size_t i = 0; i < m_count; ++i)
             {
                 auto const& update = m_updates[i];
@@ -182,12 +185,20 @@ class IdleBotAIUpdateWorker : public Worker
                     PlayerbotAI::RecordDiscardedTransitionWork();
             }
 
+            // Publish before Done: the waiting map reads this after the group's
+            // mutex establishes completion. The output outlives this batch.
+            m_cost.chat.microseconds = ManTech::channelCost.microseconds - before.microseconds;
+            m_cost.chat.calls = ManTech::channelCost.calls - before.calls;
+            m_cost.chat.recipients = ManTech::channelCost.recipients - before.recipients;
+            m_cost.elapsedUs = std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now() - started).count();
             m_group.Done();
             GetWorker().update_finished();
         }
 
     private:
         IdleBotAIUpdateRequest const* m_updates;
+        ManTech::IdleBotCostSample& m_cost;
         size_t m_count;
         uint32 m_jitterMs;
         MapUpdateTaskGroup& m_group;

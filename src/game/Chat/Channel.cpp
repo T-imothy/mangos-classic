@@ -17,6 +17,7 @@
  */
 
 #include "Chat/Channel.h"
+#include "Util/ChannelCostProbe.h"
 #include "Globals/ObjectMgr.h"
 #include "World/World.h"
 #include "Social/SocialMgr.h"
@@ -739,6 +740,7 @@ void Channel::SendToAll(WorldPacket const& data) const
 
 void Channel::SendMessage(WorldPacket const& data, ObjectGuid sender) const
 {
+    ManTech::ChannelCostScope channelCostScope(m_players.size());
     for (PlayerList::const_iterator i = m_players.begin(); i != m_players.end(); ++i)
         if (Player* plr = sObjectMgr.GetPlayer(i->first))
             if (!sender || !plr->GetSocial()->HasIgnore(sender))
