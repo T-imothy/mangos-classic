@@ -1,0 +1,119 @@
+# Keep the pinned Playerbots source immutable; compile reviewed replacements.
+# Hash checks make an upstream update require an explicit review of this fix.
+set(_lifecycle_dir "${CMAKE_BINARY_DIR}/playerbot_lifecycle")
+file(MAKE_DIRECTORY "${_lifecycle_dir}")
+function(mantech_lifecycle_replace variable before after)
+  string(FIND "${${variable}}" "${before}" location)
+  if(location EQUAL -1)
+    message(FATAL_ERROR "Playerbot map-lifecycle replacement no longer matches")
+  endif()
+  string(REPLACE "${before}" "${after}" result "${${variable}}")
+  set(${variable} "${result}" PARENT_SCOPE)
+endfunction()
+
+file(READ "${playerbots_SOURCE_DIR}/playerbot/strategy/Engine.cpp" _lifecycle_text)
+string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
+string(SHA256 _lifecycle_hash "${_lifecycle_text}")
+if(NOT _lifecycle_hash STREQUAL "f8708b24c8fc7d7297591b75898abea17c37a72603f0c838dde882bd9d193428")
+  message(FATAL_ERROR "Review map-lifecycle fix: upstream Engine.cpp changed")
+endif()
+mantech_lifecycle_replace(_lifecycle_text [==[bool Engine::DoNextAction(Unit* unit, int depth, bool minimal, bool isStunned)
+{]==] [==[bool Engine::DoNextAction(Unit* unit, int depth, bool minimal, bool isStunned)
+{
+    if (!ai->GetBot()->IsInWorld() || ai->GetBot()->IsBeingTeleported())
+        return false;]==])
+mantech_lifecycle_replace(_lifecycle_text [==[void Engine::ClearFailures(Action* action, const Event& event)
+{]==] [==[void Engine::ClearFailures(Action* action, const Event& event)
+{
+    // Execute can remove the bot from its map. Do not recalculate a target
+    // while completing that action; old-map retry state is no longer valid.
+    if (!ai->GetBot()->IsInWorld() || ai->GetBot()->IsBeingTeleported())
+    {
+        ClearActionFailures();
+        return;
+    }
+    if (actionFailures.empty())
+        return;]==])
+mantech_lifecycle_replace(_lifecycle_text [==[                        pmo4.reset();
+
+#ifdef PLAYERBOT_ELUNA]==] [==[                        pmo4.reset();
+
+                        // A successful movement action can start a teleport and
+                        // detach the bot. End this tick before failure-target
+                        // lookups, continuers or alternatives touch the old map.
+                        if (!ai->GetBot()->IsInWorld() || ai->GetBot()->IsBeingTeleported())
+                        {
+                            ClearActionFailures();
+                            if (collectDiagnostics)
+                            {
+                                if (actionExecuted) ++diagnosticSample.ok;
+                                else ++diagnosticSample.failed;
+                            }
+                            delete actionNode;
+                            break;
+                        }
+
+#ifdef PLAYERBOT_ELUNA]==])
+file(WRITE "${_lifecycle_dir}/Engine.cpp.in" "${_lifecycle_text}")
+configure_file("${_lifecycle_dir}/Engine.cpp.in" "${_lifecycle_dir}/Engine.cpp" COPYONLY)
+get_target_property(_lifecycle_sources playerbots SOURCES)
+set(_lifecycle_matches ${_lifecycle_sources})
+list(FILTER _lifecycle_matches INCLUDE REGEX "(^|/)Engine[.]cpp$")
+list(LENGTH _lifecycle_matches _lifecycle_count)
+if(NOT _lifecycle_count EQUAL 1)
+  message(FATAL_ERROR "Expected exactly one Engine.cpp source")
+endif()
+list(REMOVE_ITEM _lifecycle_sources ${_lifecycle_matches})
+list(APPEND _lifecycle_sources "${_lifecycle_dir}/Engine.cpp")
+set_property(TARGET playerbots PROPERTY SOURCES "${_lifecycle_sources}")
+set_source_files_properties("${_lifecycle_dir}/Engine.cpp" TARGET_DIRECTORY playerbots PROPERTIES INCLUDE_DIRECTORIES "${playerbots_SOURCE_DIR}/playerbot;${playerbots_SOURCE_DIR}/playerbot/strategy")
+
+file(READ "${playerbots_SOURCE_DIR}/playerbot/PlayerbotAI.cpp" _lifecycle_text)
+string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
+string(SHA256 _lifecycle_hash "${_lifecycle_text}")
+if(NOT _lifecycle_hash STREQUAL "d7815785b0cb3e19ab72d0e75d4ae529c8ee32239b2fb0d83199ee5bc550f88d")
+  message(FATAL_ERROR "Review map-lifecycle fix: upstream PlayerbotAI.cpp changed")
+endif()
+mantech_lifecycle_replace(_lifecycle_text [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)
+{
+    if (!guid)]==] [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)
+{
+    // GetMap asserts when the bot is detached during a map transfer.
+    if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+mantech_lifecycle_replace(_lifecycle_text [==[Creature* PlayerbotAI::GetCreature(ObjectGuid guid) const
+{
+    if (!guid)]==] [==[Creature* PlayerbotAI::GetCreature(ObjectGuid guid) const
+{
+    // GetMap asserts when the bot is detached during a map transfer.
+    if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+mantech_lifecycle_replace(_lifecycle_text [==[Creature* PlayerbotAI::GetAnyTypeCreature(ObjectGuid guid) const
+{
+    if (!guid)]==] [==[Creature* PlayerbotAI::GetAnyTypeCreature(ObjectGuid guid) const
+{
+    // GetMap asserts when the bot is detached during a map transfer.
+    if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+mantech_lifecycle_replace(_lifecycle_text [==[GameObject* PlayerbotAI::GetGameObject(ObjectGuid guid)
+{
+    if (!guid)]==] [==[GameObject* PlayerbotAI::GetGameObject(ObjectGuid guid)
+{
+    // GetMap asserts when the bot is detached during a map transfer.
+    if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+mantech_lifecycle_replace(_lifecycle_text [==[WorldObject* PlayerbotAI::GetWorldObject(ObjectGuid guid)
+{
+    if (!guid)]==] [==[WorldObject* PlayerbotAI::GetWorldObject(ObjectGuid guid)
+{
+    // GetMap asserts when the bot is detached during a map transfer.
+    if (!guid || !bot || !bot->IsInWorld() || bot->IsBeingTeleported())]==])
+file(WRITE "${_lifecycle_dir}/PlayerbotAI.cpp.in" "${_lifecycle_text}")
+configure_file("${_lifecycle_dir}/PlayerbotAI.cpp.in" "${_lifecycle_dir}/PlayerbotAI.cpp" COPYONLY)
+get_target_property(_lifecycle_sources playerbots SOURCES)
+set(_lifecycle_matches ${_lifecycle_sources})
+list(FILTER _lifecycle_matches INCLUDE REGEX "(^|/)PlayerbotAI[.]cpp$")
+list(LENGTH _lifecycle_matches _lifecycle_count)
+if(NOT _lifecycle_count EQUAL 1)
+  message(FATAL_ERROR "Expected exactly one PlayerbotAI.cpp source")
+endif()
+list(REMOVE_ITEM _lifecycle_sources ${_lifecycle_matches})
+list(APPEND _lifecycle_sources "${_lifecycle_dir}/PlayerbotAI.cpp")
+set_property(TARGET playerbots PROPERTY SOURCES "${_lifecycle_sources}")
+set_source_files_properties("${_lifecycle_dir}/PlayerbotAI.cpp" TARGET_DIRECTORY playerbots PROPERTIES INCLUDE_DIRECTORIES "${playerbots_SOURCE_DIR}/playerbot;${playerbots_SOURCE_DIR}/playerbot/strategy")
