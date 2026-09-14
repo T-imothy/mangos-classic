@@ -15,7 +15,9 @@
 #include <mimalloc.h>
 #endif
 namespace {
-constexpr unsigned Slots=65536, Sites=4096, Frames=12, Probes=32;
+// The full-population diagnostic exceeded 4096 distinct sites. Keep
+// bounded tables, but size them for the observed 10k workload. Diagnostic only.
+constexpr unsigned Slots=262144, Sites=32768, Frames=12, Probes=32;
 struct Allocation { void* pointer; std::size_t bytes; unsigned site; };
 struct Site { void* frames[Frames]; unsigned depth; std::uint64_t allocated, freed, liveBytes, liveCount, peakBytes; };
 Allocation allocations[Slots]{};
