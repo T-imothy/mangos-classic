@@ -742,6 +742,7 @@ void Channel::SendToAll(WorldPacket const& data) const
 
 void Channel::SendMessage(WorldPacket const& data, ObjectGuid sender) const
 {
+    MANTECH_DIAG_SCOPE(Packet,1,"channel chat delivery");
     ManTech::ChannelCostScope channelCostScope(m_players.size());
     for (PlayerList::const_iterator i = m_players.begin(); i != m_players.end(); ++i)
         if (Player* plr = sObjectMgr.GetPlayer(i->first))

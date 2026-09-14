@@ -1,3 +1,5 @@
+#include "Util/MapUpdateOrder.h"
+#include <vector>
 #include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
@@ -501,6 +503,7 @@ void MapManager::DeleteInstance(uint32 mapid, uint32 instanceId)
         if (iter->second->Instanceable())
         {
             auto node = i_maps.extract(iter);
+            m_mapUpdateMicros.erase(node.key());
 
             node.mapped()->UnloadAll(true);
         }
@@ -514,6 +517,10 @@ void MapManager::Update(uint32 diff)
     if (!i_timer.Passed())
         return;
 
+    struct DueMap { Map* map; uint32 diff; uint64 estimatedMicros; uint64* completedMicros; };
+    std::vector<DueMap> dueMaps;
+    if (m_updater.activated())
+        dueMaps.reserve(i_maps.size());
     const uint32 mapDiff = static_cast<uint32>(i_timer.GetCurrent());
     const bool adaptiveLoad = sWorld.getConfig(CONFIG_BOOL_ADAPTIVE_LOAD_ENABLED);
     const uint32 emptyMapInterval = sWorld.getConfig(CONFIG_UINT32_ADAPTIVE_LOAD_EMPTY_MAP_UPDATE_MS);
@@ -542,13 +549,21 @@ void MapManager::Update(uint32 diff)
         }
 
         if (m_updater.activated())
-            m_updater.schedule_update(new MapUpdateWorker(*map.second, updateDiff, m_updater));
+        {
+            auto& previous = m_mapUpdateMicros[map.first];
+            dueMaps.push_back({map.second.get(), updateDiff, previous, &previous});
+        }
         else
             map.second->Update(updateDiff);
     }
 
     if (m_updater.activated())
+    {
+        ManTech::OrderMapUpdates(dueMaps);
+        for (auto const& due : dueMaps)
+            m_updater.schedule_update(new MapUpdateWorker(*due.map, due.diff, m_updater, due.completedMicros));
         m_updater.wait();
+    }
 
     SwitchPlayersInstances();
 
@@ -562,6 +577,7 @@ void MapManager::Update(uint32 diff)
             auto node = i_maps.extract(iter++);
 
             m_emptyMapUpdateAccumulator.erase(node.key());
+            m_mapUpdateMicros.erase(node.key());
 
             node.mapped()->UnloadAll(true);
         }
@@ -602,6 +618,7 @@ void MapManager::UnloadAll()
 
     i_maps.clear();
     m_emptyMapUpdateAccumulator.clear();
+    m_mapUpdateMicros.clear();
 
     if (m_updater.activated())
         m_updater.deactivate();

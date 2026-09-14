@@ -4544,11 +4544,13 @@ void Unit::DeMorph()
     SetDisplayId(GetNativeDisplayId());
 }
 
+// Scalar reads do not expose a list reference or mutate auras. Avoid creating
+// an empty per-unit list solely to calculate a neutral result.
 int32 Unit::GetTotalAuraModifier(AuraType auratype) const
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
         modifier += i->GetModifier()->m_amount;
 
@@ -4559,7 +4561,7 @@ float Unit::GetTotalAuraMultiplier(AuraType auratype) const
 {
     float multiplier = 1.0f;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
         multiplier *= (100.0f + i->GetModifier()->m_amount) / 100.0f;
 
@@ -4570,7 +4572,7 @@ int32 Unit::GetMaxPositiveAuraModifier(AuraType auratype) const
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
         if (i->GetModifier()->m_amount > modifier)
             modifier = i->GetModifier()->m_amount;
@@ -4582,7 +4584,7 @@ int32 Unit::GetMaxNegativeAuraModifier(AuraType auratype) const
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
         if (i->GetModifier()->m_amount < modifier)
             modifier = i->GetModifier()->m_amount;
@@ -4597,7 +4599,7 @@ int32 Unit::GetTotalAuraModifierByMiscMask(AuraType auratype, uint32 misc_mask) 
 
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4614,7 +4616,7 @@ float Unit::GetTotalAuraMultiplierByMiscMask(AuraType auratype, uint32 misc_mask
 
     float multiplier = 1.0f;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4631,7 +4633,7 @@ int32 Unit::GetMaxPositiveAuraModifierByMiscMask(AuraType auratype, uint32 misc_
 
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4649,7 +4651,7 @@ int32 Unit::GetMaxNegativeAuraModifierByMiscMask(AuraType auratype, uint32 misc_
 
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4664,7 +4666,7 @@ int32 Unit::GetTotalAuraModifierByMiscValue(AuraType auratype, int32 misc_value)
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4678,7 +4680,7 @@ float Unit::GetTotalAuraMultiplierByMiscValue(AuraType auratype, int32 misc_valu
 {
     float multiplier = 1.0f;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4692,7 +4694,7 @@ int32 Unit::GetMaxPositiveAuraModifierByMiscValue(AuraType auratype, int32 misc_
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4707,7 +4709,7 @@ int32 Unit::GetMaxNegativeAuraModifierByMiscValue(AuraType auratype, int32 misc_
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();
@@ -4722,7 +4724,7 @@ int32 Unit::GetMaxPositiveAuraModifierByItemClass(AuraType auratype, Item* weapo
 {
     int32 modifier = 0;
 
-    AuraList const& mTotalAuraList = GetAurasByType(auratype);
+    AuraList const& mTotalAuraList = m_modAuras[auratype];
     for (auto i : mTotalAuraList)
     {
         Modifier* mod = i->GetModifier();

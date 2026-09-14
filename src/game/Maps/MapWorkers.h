@@ -1,3 +1,4 @@
+#include <chrono>
 #include "Util/DevDiagnostics.h"
 /*
 * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
@@ -85,8 +86,8 @@ class Worker
 class MapUpdateWorker : public Worker
 {
     public:
-        MapUpdateWorker(Map& map, uint32 diff, MapUpdater& updater) :
-            Worker(updater), m_map(map), m_diff(diff)
+        MapUpdateWorker(Map& map, uint32 diff, MapUpdater& updater, uint64* completedMicros = nullptr) :
+            Worker(updater), m_map(map), m_diff(diff), m_completedMicros(completedMicros)
         {
 #ifdef MANTECH_DEV_DIAGNOSTICS
             m_diagQueued=ManTech::Diag::Now();
@@ -102,13 +103,19 @@ class MapUpdateWorker : public Worker
 #ifdef MANTECH_DEV_DIAGNOSTICS
             ManTech::Diag::Queue(m_diagQueued,m_map.GetId(),m_map.GetInstanceId());
 #endif
+            auto const started = std::chrono::steady_clock::now();
             m_map.Update(m_diff);
+            if (m_completedMicros)
+                *m_completedMicros = static_cast<uint64>(std::chrono::duration_cast<std::chrono::microseconds>(
+                    std::chrono::steady_clock::now() - started).count());
+            // Publish the estimate before the manager's existing completion barrier.
             GetWorker().update_finished();
         }
 
     private:
         Map& m_map;
         uint32 m_diff;
+        uint64* m_completedMicros;
 #ifdef MANTECH_DEV_DIAGNOSTICS
         std::uint64_t m_diagQueued=0;
 #endif

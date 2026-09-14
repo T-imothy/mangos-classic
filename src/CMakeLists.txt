@@ -45,6 +45,7 @@ if(BUILD_PLAYERBOTS)
   include("${CMAKE_SOURCE_DIR}/cmake/playerbot_map_lifecycle.cmake")
   include("${CMAKE_SOURCE_DIR}/cmake/playerbot_shuffle.cmake")
   include("${CMAKE_SOURCE_DIR}/cmake/playerbot_accounts.cmake")
+  include("${CMAKE_SOURCE_DIR}/cmake/playerbot_hotpaths.cmake")
 
 else()
   if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots)

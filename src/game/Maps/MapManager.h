@@ -206,6 +206,8 @@ class MapManager : public MaNGOS::Singleton<MapManager, MaNGOS::ClassLevelLockab
         uint32 i_gridCleanUpDelay;
         MapMapType i_maps;
         std::map<MapID, uint32> m_emptyMapUpdateAccumulator;
+        // Written by distinct map workers; read only after the update barrier.
+        std::map<MapID, uint64> m_mapUpdateMicros;
         IntervalTimer i_timer;
 
         std::atomic<uint32> i_MaxInstanceId;
