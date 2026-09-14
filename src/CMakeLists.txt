@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "f07c37954ce1595aa674dac4fc87a8b122c2082d" # Aura read guards; includes native Uldaman altar assistance
+        GIT_TAG "d1eb694b5b8a29ef52e16f347787cd34ca4b7a33" # DEV chat admission and audience fix; retains aura guards and Uldaman assistance
   )
 
   FetchContent_GetProperties(PlayerBots)

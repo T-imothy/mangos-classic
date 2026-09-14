@@ -112,3 +112,7 @@ target_compile_features(arch4_map_order_tests PRIVATE cxx_std_20)
 target_include_directories(arch4_map_order_tests PRIVATE ${PROJECT_SOURCE_DIR}/src/shared)
 target_link_libraries(arch4_map_order_tests PRIVATE cmangos-compile-option-interface)
 add_test(NAME arch4_map_order COMMAND arch4_map_order_tests)
+
+if(BUILD_PLAYERBOTS)
+  include("${playerbots_SOURCE_DIR}/tests/chat/CMakeLists.txt")
+endif()
