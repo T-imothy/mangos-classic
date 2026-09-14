@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdint>
+#include <algorithm>
 #include <malloc.h>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -109,26 +110,34 @@ void release(void* p,bool aligned=false) noexcept {
 namespace ManTech {
 void BeginAllocationProfile(unsigned mask) { sampleMask=mask; tracking=true; enabled=true; }
 void EndAllocationProfile() { enabled=false; }
-std::size_t ProfileCapacity(){return sizeof(allocations)+sizeof(sites)*2+sizeof(bloom);}
+std::size_t ProfileCapacity(){return sizeof(allocations)+sizeof(sites)*2+sizeof(bloom)+sizeof(unsigned)*Sites+sizeof(bool)*Sites;}
 void DumpAllocationProfile() {
     if(!tracking || dumping.test_and_set())return;
     recursive=true;
     static Site snapshot[Sites];
     { Guard lock; std::memcpy(snapshot,sites,sizeof(sites)); }
+    // Export the largest retained and churn sites, not an unbounded symbol dump.
+    static unsigned rank[Sites]; static bool selected[Sites];
+    std::memset(selected,0,sizeof(selected));unsigned used=0;
+    for(unsigned i=0;i<Sites;++i)if(snapshot[i].depth)rank[used++]=i;
+    std::sort(rank,rank+used,[&](unsigned a,unsigned b){return snapshot[a].liveBytes>snapshot[b].liveBytes;});
+    for(unsigned i=0;i<(std::min)(1024u,used);++i)selected[rank[i]]=true;
+    std::sort(rank,rank+used,[&](unsigned a,unsigned b){return snapshot[a].allocated>snapshot[b].allocated;});
+    for(unsigned i=0;i<(std::min)(1024u,used);++i)selected[rank[i]]=true;
     static unsigned sequence=0;
     char path[80]; std::snprintf(path,sizeof(path),"arch4-heap-%03u.tsv",(++sequence)%8);
     FILE* f=std::fopen(path,"w");
     if(f) {
-        std::fprintf(f,"# Sampled C++ allocations only; probability=1/%u; samples=%llu; allocation_drops=%llu; site_drops=%llu; fixed_table_bytes=%zu\n",
-            sampleMask.load()+1,static_cast<unsigned long long>(samples.load()),static_cast<unsigned long long>(missedAllocations.load()),static_cast<unsigned long long>(missedSites.load()),sizeof(allocations)+sizeof(sites)+sizeof(snapshot)+sizeof(bloom));
+        std::fprintf(f,"# Sampled C++ allocations only; probability=1/%u; samples=%llu; allocation_drops=%llu; site_drops=%llu; fixed_table_bytes=%zu; export_limit=2048; selection=top_retained_and_allocated\n",
+            sampleMask.load()+1,static_cast<unsigned long long>(samples.load()),static_cast<unsigned long long>(missedAllocations.load()),static_cast<unsigned long long>(missedSites.load()),sizeof(allocations)+sizeof(sites)+sizeof(snapshot)+sizeof(bloom)+sizeof(rank)+sizeof(selected));
         std::fprintf(f,"site\tlive_sample_bytes\tlive_samples\tallocated_sample_bytes\tfreed_sample_bytes\tpeak_sample_bytes\tstack\n");
         SymInitialize(GetCurrentProcess(),nullptr,TRUE);
         for(unsigned i=0;i<Sites;++i) {
-            auto const& s=snapshot[i]; if(!s.depth)continue;
+            auto const& s=snapshot[i]; if(!s.depth||!selected[i])continue;
             std::fprintf(f,"%u\t%llu\t%llu\t%llu\t%llu\t%llu\t",i,(unsigned long long)s.liveBytes,(unsigned long long)s.liveCount,(unsigned long long)s.allocated,(unsigned long long)s.freed,(unsigned long long)s.peakBytes);
             for(unsigned j=0;j<s.depth;++j) {
                 alignas(SYMBOL_INFO) char storage[sizeof(SYMBOL_INFO)+512]{};
-                auto symbol=reinterpret_cast<SYMBOL_INFO*>(storage);symbol->SizeOfStruct=sizeof(SYMBOL_INFO);symbol->MaxNameLen=511;
+                auto symbol=reinterpret_cast<SYMBOL_INFO*>(storage);symbol->SizeOfStruct=sizeof(SYMBOL_INFO);symbol->MaxNameLen=255;
                 DWORD64 offset=0;
                 if(SymFromAddr(GetCurrentProcess(),reinterpret_cast<DWORD64>(s.frames[j]),&offset,symbol))
                     std::fprintf(f,"%s+0x%llx%s",symbol->Name,(unsigned long long)offset,j+1<s.depth?";":"");

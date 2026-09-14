@@ -34,9 +34,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(MANTECH_DEV_DIAGNOSTICS "Bounded DEV runtime diagnostics" OFF)
-if(MANTECH_DEV_DIAGNOSTICS)
-  add_compile_definitions(MANTECH_DEV_DIAGNOSTICS)
-endif()
 
 
 # Define here name of the binaries
@@ -428,6 +425,13 @@ endif()
 
 if(UNIX)
   add_compile_definitions(SYSCONFDIR="../${CONF_FOLDER_NAME}/")
+endif()
+
+if(MANTECH_DEV_DIAGNOSTICS)
+  if(NOT WIN32)
+    message(FATAL_ERROR "DEV diagnostics currently require Windows")
+  endif()
+  add_compile_definitions(MANTECH_DEV_DIAGNOSTICS)
 endif()
 
 include(cmake/Arch4Allocator.cmake)
