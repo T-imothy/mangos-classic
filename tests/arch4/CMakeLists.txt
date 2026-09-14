@@ -114,5 +114,6 @@ target_link_libraries(arch4_map_order_tests PRIVATE cmangos-compile-option-inter
 add_test(NAME arch4_map_order COMMAND arch4_map_order_tests)
 
 if(BUILD_PLAYERBOTS)
+  get_target_property(playerbots_SOURCE_DIR playerbots SOURCE_DIR)
   include("${playerbots_SOURCE_DIR}/tests/chat/CMakeLists.txt")
 endif()
