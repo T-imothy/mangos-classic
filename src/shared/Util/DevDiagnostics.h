@@ -11,8 +11,20 @@
 #include <cstring>
 #include <cstdio>
 #include <algorithm>
-#include "Util/ChannelCostProbe.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 namespace ManTech::Diag {
+inline std::uint64_t ThreadCpuMicros() {
+#ifdef _WIN32
+    FILETIME created{}, exited{}, kernel{}, user{};
+    if (GetThreadTimes(GetCurrentThread(), &created, &exited, &kernel, &user)) {
+        auto ticks=[](FILETIME t){return (std::uint64_t(t.dwHighDateTime)<<32)|t.dwLowDateTime;};
+        return (ticks(kernel)+ticks(user))/10;
+    }
+#endif
+    return 0;
+}
 enum class Metric : unsigned {
     World, Maps, Map, MapQueue, MapBarrier, GridWorker, ObjectBuild,
     BotBatch, PlayerCore, Objects, Scripts, Send, MovementFlush,
@@ -105,12 +117,12 @@ public:
         if((++Sequence[unsigned(m)]%std::max(1u,every))!=0)return;
         t=thread;context=Context;label=LabelId(name);
         cpuEnabled=(m==Metric::World||m==Metric::Map||m==Metric::Maps||m==Metric::MapBarrier||m==Metric::GridWorker||m==Metric::ObjectBuild);
-        started=Now();if(cpuEnabled)cpuStarted=ReadThreadCpu().microseconds;
+        started=Now();if(cpuEnabled)cpuStarted=ThreadCpuMicros();
     }
-    void Finish(){if(t){auto duration=Now()-started;auto cpu=cpuEnabled?ReadThreadCpu().microseconds:0;cpu=cpu>=cpuStarted?cpu-cpuStarted:0;Sample(*t,metric,duration,cpu,cpuEnabled);Named(*t,unsigned(metric),label,duration);Trace(*t,metric,label,started,duration,cpu,context);t=nullptr;}}
+    void Finish(){if(t){auto duration=Now()-started;auto cpu=cpuEnabled?ThreadCpuMicros():0;cpu=cpu>=cpuStarted?cpu-cpuStarted:0;Sample(*t,metric,duration,cpu,cpuEnabled);Named(*t,unsigned(metric),label,duration);Trace(*t,metric,label,started,duration,cpu,context);t=nullptr;}}
     ~Scope(){Finish();}
     bool Sampling()const{return t!=nullptr;}
-    void SetName(char const* name){if(t&&name){label=LabelId(name);started=Now();if(cpuEnabled)cpuStarted=ReadThreadCpu().microseconds;}}
+    void SetName(char const* name){if(t&&name){label=LabelId(name);started=Now();if(cpuEnabled)cpuStarted=ThreadCpuMicros();}}
     Scope(Scope const&)=delete;Scope& operator=(Scope const&)=delete;
 };
 inline void Record(Metric m,std::uint64_t us) {
