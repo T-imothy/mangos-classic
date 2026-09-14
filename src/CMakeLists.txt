@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "08406440b53bfb26a66149824116f12c72140c92" # Native Uldaman altar assistance
+        GIT_TAG "d38392eb6358cb915108573a4655b78ae7faf2dc" # Native Uldaman altar assistance
   )
 
   FetchContent_GetProperties(PlayerBots)
