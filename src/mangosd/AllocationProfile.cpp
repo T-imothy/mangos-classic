@@ -63,6 +63,7 @@ void remember(void* p,std::size_t bytes) noexcept {
     for(unsigned i=0;i<depth;++i) h=h*16777619U^hashPointer(stack[i]);
     {
         Guard lock;
+        if(!enabled.load(std::memory_order_relaxed)){recursive=false;return;}
         unsigned site=Sites;
         for(unsigned i=0;i<Probes;++i) {
             unsigned k=(h+i)&(Sites-1); auto& s=sites[k];
@@ -110,7 +111,7 @@ void release(void* p,bool aligned=false) noexcept {
 }
 namespace ManTech {
 void BeginAllocationProfile(unsigned mask) { sampleMask=mask; tracking=true; enabled=true; }
-void EndAllocationProfile() { enabled=false; }
+void EndAllocationProfile() { enabled=false; Guard lock; }
 void IgnoreProfileThread(){ignoreNewSamples=true;}
 AllocationTotals ProfileTotals(){Guard lock;return {totalAllocated,totalFreed,totalLive,activeSamples.load(),samples.load(),missedAllocations.load(),missedSites.load(),sampleMask.load()+1,enabled.load()};}
 std::size_t ProfileCapacity(){return sizeof(allocations)+sizeof(sites)*2+sizeof(bloom)+sizeof(unsigned)*Sites+sizeof(bool)*Sites;}
