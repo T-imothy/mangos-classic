@@ -1640,7 +1640,7 @@ void Map::Remove(T* obj, bool remove)
     UpdateObjectVisibility(obj, cell, p);                   // i think will be better to call this function while object still in grid, this changes nothing but logically is better(as for me)
     RemoveFromGrid(obj, grid, cell);
 
-    m_objRemoveList.insert(obj->GetObjectGuid());
+    RememberRemovedObject(obj->GetObjectGuid());
 
     if (remove)
         // if option set then object already saved at this moment
@@ -2937,6 +2937,18 @@ WorldObject* Map::GetWorldObject(ObjectGuid guid)
     }
 
     return nullptr;
+}
+
+void Map::RememberRemovedObject(ObjectGuid guid)
+{
+    if (!m_objRemoveList.insert(guid).second)
+        return;
+    m_objRemoveOrder.push_back(guid);
+    if (m_objRemoveOrder.size() > 4096)
+    {
+        m_objRemoveList.erase(m_objRemoveOrder.front());
+        m_objRemoveOrder.pop_front();
+    }
 }
 
 void Map::SendObjectUpdates()

@@ -42,6 +42,7 @@
 #include "World/WorldStateVariableManager.h"
 
 #include <bitset>
+#include <deque>
 #include <functional>
 #include <list>
 
@@ -409,7 +410,10 @@ class Map : public GridRefManager<NGridType>
         virtual BattleGround* GetBG() const { return nullptr; }
 
         // debug
-        std::set<ObjectGuid> m_objRemoveList; // this will eventually eat up too much memory - only used for debugging VisibleNotifier::Notify() customlog leak
+        // Diagnostic history only, bounded to 4096 unique removals per map.
+        void RememberRemovedObject(ObjectGuid guid);
+        std::set<ObjectGuid> m_objRemoveList;
+        std::deque<ObjectGuid> m_objRemoveOrder;
 
 #ifdef ENABLE_PLAYERBOTS
         bool HasRealPlayers() { return hasRealPlayers; }
