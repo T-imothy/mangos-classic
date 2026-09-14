@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -47,6 +48,7 @@ void MapUpdater::deactivate()
 
 void MapUpdater::wait()
 {
+    MANTECH_DIAG_SCOPE(MapBarrier,1,nullptr);
     std::unique_lock<std::mutex> lock(_lock);
 
     while (pending_requests > 0)

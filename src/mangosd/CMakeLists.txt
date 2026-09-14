@@ -169,3 +169,7 @@ if(MANTECH_PROFILE_ALLOCATIONS)
   target_sources(${EXECUTABLE_NAME} PRIVATE AllocationProfile.cpp)
   target_link_libraries(${EXECUTABLE_NAME} dbghelp)
 endif()
+
+if(WIN32 AND MANTECH_DEV_DIAGNOSTICS)
+  target_link_libraries(${EXECUTABLE_NAME} psapi)
+endif()

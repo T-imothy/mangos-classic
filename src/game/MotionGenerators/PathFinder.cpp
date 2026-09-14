@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -122,6 +123,7 @@ bool PathFinder::calculate(float destX, float destY, float destZ, bool forceDest
 
 bool PathFinder::calculate(Vector3 const& start, Vector3 const& dest, bool forceDest/* = false*/, bool straightLine/* = false*/)
 {
+    MANTECH_DIAG_SCOPE(Path,32,nullptr);
     if (!MaNGOS::IsValidMapCoord(dest.x, dest.y, dest.z))
         return false;
 

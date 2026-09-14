@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -508,6 +509,7 @@ void MapManager::DeleteInstance(uint32 mapid, uint32 instanceId)
 
 void MapManager::Update(uint32 diff)
 {
+    MANTECH_DIAG_SCOPE(Maps,1,nullptr);
     i_timer.Update(diff);
     if (!i_timer.Passed())
         return;

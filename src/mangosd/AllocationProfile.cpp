@@ -17,7 +17,7 @@
 namespace {
 // The full-population diagnostic exceeded 4096 distinct sites. Keep
 // bounded tables, but size them for the observed 10k workload. Diagnostic only.
-constexpr unsigned Slots=262144, Sites=32768, Frames=12, Probes=32;
+constexpr unsigned Slots=262144, Sites=131072, Frames=12, Probes=32;
 struct Allocation { void* pointer; std::size_t bytes; unsigned site; };
 struct Site { void* frames[Frames]; unsigned depth; std::uint64_t allocated, freed, liveBytes, liveCount, peakBytes; };
 Allocation allocations[Slots]{};
@@ -27,12 +27,16 @@ thread_local bool recursive=false;
 thread_local std::uint64_t randomState=0;
 std::atomic<std::uint64_t> missedAllocations{0}, missedSites{0}, samples{0};
 std::atomic<unsigned> sampleMask{1023};
-std::atomic<bool> enabled{false};
+std::atomic<bool> enabled{false}, tracking{false};
+constexpr unsigned BloomWords=32768;
+std::atomic<std::uint64_t> bloom[BloomWords]{};
+std::atomic<std::uint64_t> activeSamples{0};
 std::atomic_flag dumping=ATOMIC_FLAG_INIT;
 struct Guard { Guard(){while(gate.test_and_set(std::memory_order_acquire)) YieldProcessor();} ~Guard(){gate.clear(std::memory_order_release);} };
 unsigned hashPointer(void* p) { auto v=reinterpret_cast<std::uintptr_t>(p)>>4; v^=v>>23; v*=0x2127599bf4325c37ULL; return unsigned(v^(v>>32)); }
 void forget(void* p) noexcept {
-    if (!p || recursive || !enabled.load(std::memory_order_relaxed)) return;
+    if (!p || recursive || !tracking.load(std::memory_order_relaxed) || !activeSamples.load(std::memory_order_relaxed)) return;
+    unsigned bh=hashPointer(p); if(!(bloom[(bh>>6)&(BloomWords-1)].load(std::memory_order_relaxed)&(1ULL<<(bh&63))))return;
     Guard lock;
     unsigned h=hashPointer(p)&(Slots-1);
     for(unsigned n=0;n<Probes;++n) {
@@ -40,7 +44,7 @@ void forget(void* p) noexcept {
         if (!a.pointer) return;
         if(a.pointer==p) {
             auto& s=sites[a.site]; s.freed+=a.bytes; s.liveBytes-=a.bytes; --s.liveCount;
-            a.pointer=reinterpret_cast<void*>(1); return;
+            a.pointer=reinterpret_cast<void*>(1); activeSamples.fetch_sub(1,std::memory_order_relaxed); return;
         }
     }
 }
@@ -71,7 +75,8 @@ void remember(void* p,std::size_t bytes) noexcept {
                 if(reinterpret_cast<std::uintptr_t>(a.pointer)<=1) {
                     a={p,bytes,site}; auto& s=sites[site]; s.allocated+=bytes; s.liveBytes+=bytes; ++s.liveCount;
                     if(s.liveBytes>s.peakBytes)s.peakBytes=s.liveBytes;
-                    ++samples; stored=true; break;
+                    unsigned bh=hashPointer(p);bloom[(bh>>6)&(BloomWords-1)].fetch_or(1ULL<<(bh&63),std::memory_order_relaxed);
+                    activeSamples.fetch_add(1,std::memory_order_relaxed);++samples; stored=true; break;
                 }
             }
             if(!stored) ++missedAllocations;
@@ -102,18 +107,20 @@ void release(void* p,bool aligned=false) noexcept {
 }
 }
 namespace ManTech {
-void BeginAllocationProfile(unsigned mask) { sampleMask=mask; enabled=true; }
+void BeginAllocationProfile(unsigned mask) { sampleMask=mask; tracking=true; enabled=true; }
+void EndAllocationProfile() { enabled=false; }
+std::size_t ProfileCapacity(){return sizeof(allocations)+sizeof(sites)*2+sizeof(bloom);}
 void DumpAllocationProfile() {
-    if(!enabled || dumping.test_and_set())return;
+    if(!tracking || dumping.test_and_set())return;
     recursive=true;
     static Site snapshot[Sites];
     { Guard lock; std::memcpy(snapshot,sites,sizeof(sites)); }
     static unsigned sequence=0;
-    char path[80]; std::snprintf(path,sizeof(path),"arch4-heap-%03u.tsv",++sequence);
+    char path[80]; std::snprintf(path,sizeof(path),"arch4-heap-%03u.tsv",(++sequence)%8);
     FILE* f=std::fopen(path,"w");
     if(f) {
         std::fprintf(f,"# Sampled C++ allocations only; probability=1/%u; samples=%llu; allocation_drops=%llu; site_drops=%llu; fixed_table_bytes=%zu\n",
-            sampleMask.load()+1,static_cast<unsigned long long>(samples.load()),static_cast<unsigned long long>(missedAllocations.load()),static_cast<unsigned long long>(missedSites.load()),sizeof(allocations)+sizeof(sites)+sizeof(snapshot));
+            sampleMask.load()+1,static_cast<unsigned long long>(samples.load()),static_cast<unsigned long long>(missedAllocations.load()),static_cast<unsigned long long>(missedSites.load()),sizeof(allocations)+sizeof(sites)+sizeof(snapshot)+sizeof(bloom));
         std::fprintf(f,"site\tlive_sample_bytes\tlive_samples\tallocated_sample_bytes\tfreed_sample_bytes\tpeak_sample_bytes\tstack\n");
         SymInitialize(GetCurrentProcess(),nullptr,TRUE);
         for(unsigned i=0;i<Sites;++i) {
@@ -155,4 +162,4 @@ void* operator new[](std::size_t n,std::align_val_t a,std::nothrow_t const&) noe
 void operator delete(void* p,std::align_val_t,std::nothrow_t const&) noexcept {release(p,true);}
 void operator delete[](void* p,std::align_val_t,std::nothrow_t const&) noexcept {release(p,true);}
 
-namespace { struct ProfileRegistration { ProfileRegistration() { ManTech::allocationProfileStart=ManTech::BeginAllocationProfile; ManTech::allocationProfileWrite=ManTech::DumpAllocationProfile; } } profileRegistration; }
+namespace { struct ProfileRegistration { ProfileRegistration() { ManTech::allocationProfileStart=ManTech::BeginAllocationProfile; ManTech::allocationProfileWrite=ManTech::DumpAllocationProfile; ManTech::allocationProfileStop=ManTech::EndAllocationProfile; ManTech::allocationProfileCapacity=ManTech::ProfileCapacity; } } profileRegistration; }

@@ -1,3 +1,4 @@
+#include "Util/DevDiagnosticsService.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -1674,6 +1675,8 @@ void World::DetectDBCLang()
 /// Update the World !
 void World::Update(uint32 diff)
 {
+    ManTech::Diag::StartObserver();
+    MANTECH_DIAG_SCOPE(World,1,nullptr);
     m_currentMSTime = WorldTimer::getMSTime();
     m_currentTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
     m_currentDiff = diff;
@@ -2030,7 +2033,9 @@ void World::Update(uint32 diff)
             }
 
             // Requested payload bytes only; allocator metadata/capacity is reported separately.
+#ifndef MANTECH_DEV_DIAGNOSTICS
             ManTech::WriteAllocationProfile();
+#endif
             for (unsigned kind = 0; kind < static_cast<unsigned>(ManTech::MemoryKind::Count); ++kind)
             {
                 auto memory = ManTech::MemoryLedger::Read(static_cast<ManTech::MemoryKind>(kind));
@@ -2743,6 +2748,7 @@ void World::InitResultQueue()
 
 void World::UpdateResultQueue()
 {
+    MANTECH_DIAG_SCOPE(DbCallbacks,1,nullptr);
     // process async result queues
     uint32 const budget = getConfig(CONFIG_UINT32_DATABASE_CALLBACK_BUDGET_MS);
     CharacterDatabase.ProcessResultQueue(budget);

@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -719,6 +720,7 @@ uint32 Creature::ChooseDisplayId(const CreatureInfo* cinfo, const CreatureData* 
 
 void Creature::Update(const uint32 diff)
 {
+    MANTECH_DIAG_SCOPE(Creature,32,nullptr);
     switch (m_deathState)
     {
         case JUST_ALIVED:

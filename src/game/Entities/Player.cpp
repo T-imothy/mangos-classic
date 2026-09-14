@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -1408,6 +1409,7 @@ uint32 Player::getCorpseReclaimDelayHelper(time_t deathExpirationTime, time_t ti
 
 void Player::Update(const uint32 diff)
 {
+    MANTECH_DIAG_SCOPE(Player,32,nullptr);
     if (!IsInWorld())
         return;
 

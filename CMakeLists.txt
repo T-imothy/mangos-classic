@@ -33,6 +33,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+option(MANTECH_DEV_DIAGNOSTICS "Bounded DEV runtime diagnostics" OFF)
+if(MANTECH_DEV_DIAGNOSTICS)
+  add_compile_definitions(MANTECH_DEV_DIAGNOSTICS)
+endif()
+
+
 # Define here name of the binaries
 set(CMANGOS_BINARY_SERVER_NAME "mangosd")
 set(CMANGOS_BINARY_REALMD_NAME "realmd")

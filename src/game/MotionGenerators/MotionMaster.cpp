@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -113,6 +114,7 @@ MotionMaster::~MotionMaster()
 
 void MotionMaster::UpdateMotion(uint32 diff)
 {
+    MANTECH_DIAG_SCOPE(Movement,32,nullptr);
     if (m_owner->hasUnitState(UNIT_STAT_CAN_NOT_MOVE))
         return;
 #ifdef BUILD_METRICS

@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -3576,6 +3577,7 @@ void Spell::SendSpellCooldown()
 
 void Spell::update(uint32 difftime)
 {
+    MANTECH_DIAG_SCOPE(Spell,32,nullptr);
     if (!m_updated)
     {
         m_updated = true;

@@ -30,10 +30,13 @@ int main() {
     if (reinterpret_cast<std::uintptr_t>(aligned)%128) return 2;
     ManTech::WriteAllocationProfile();
     if (!verify("arch4-heap-001.tsv",12736,129)) return 3;
+    ManTech::StopAllocationProfile();
+    auto untracked=::operator new(999); ::operator delete(untracked);
     for (auto p:held) ::operator delete(p);
     ::operator delete(aligned,std::align_val_t(128));
     ManTech::WriteAllocationProfile();
     if (!verify("arch4-heap-002.tsv",0,0)) return 4;
+    ManTech::StartAllocationProfile(0);
     std::thread a([]{for(int i=0;i<10000;++i){auto p=::operator new(173);::operator delete(p);}});
     std::thread b([]{for(int i=0;i<10000;++i){auto p=::operator new(197);::operator delete(p);}});
     a.join();b.join();

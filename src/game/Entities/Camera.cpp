@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -146,6 +147,7 @@ template void Camera::UpdateVisibilityOf(DynamicObject*, UpdateData&, WorldObjec
 
 void Camera::UpdateVisibilityForOwner(bool addToWorld)
 {
+    MANTECH_DIAG_SCOPE(Visibility,32,nullptr);
     MaNGOS::VisibleNotifier notifier(*this);
     Cell::VisitAllObjects(m_source, notifier, addToWorld ? MAX_VISIBILITY_DISTANCE : m_source->GetVisibilityData().GetVisibilityDistance(), false);
     notifier.Notify();

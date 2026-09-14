@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -4126,6 +4127,7 @@ uint32 Unit::GetWeaponSkillValue(WeaponAttackType attType, Unit const* target) c
 
 void Unit::_UpdateSpells(uint32 time)
 {
+    MANTECH_DIAG_SCOPE(Auras,32,nullptr);
 #ifdef BUILD_METRICS
     metric::duration<std::chrono::microseconds> meas("unit.update.spells", {
         { "entry", std::to_string(GetEntry()) },

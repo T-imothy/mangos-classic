@@ -1,3 +1,4 @@
+#include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -812,6 +813,8 @@ void Map::GetPlayerbotAIObjectStats(uint64& aiObjects, uint64& strategies, uint6
 
 void Map::Update(const uint32& t_diff)
 {
+    MANTECH_DIAG_CONTEXT(GetId(),GetInstanceId());
+    MANTECH_DIAG_SCOPE(Map,1,ManTech::Diag::MapLabel());
     auto const channelCostBefore = ManTech::channelCost;
     auto const mapCpuStarted = ManTech::ReadThreadCpu();
     ManTech::IdleBotCostSample idleCost;
@@ -1474,6 +1477,12 @@ void Map::Update(const uint32& t_diff)
     const uint32 performanceTotalElapsed = WorldTimer::getMSTimeDiff(performanceMapStart, WorldTimer::getMSTime());
     auto const mapCpu = ManTech::CpuDelta(ManTech::ReadThreadCpu(), mapCpuStarted);
     UpdateAdaptiveLoad(performanceTotalElapsed);
+    ManTech::Diag::Record(ManTech::Diag::Metric::BotBatch,std::uint64_t(performanceBotElapsed)*1000);
+    ManTech::Diag::Record(ManTech::Diag::Metric::PlayerCore,std::uint64_t(performancePlayerElapsed > performanceBotElapsed ? performancePlayerElapsed-performanceBotElapsed : 0)*1000);
+    ManTech::Diag::Record(ManTech::Diag::Metric::Objects,std::uint64_t(performanceObjectElapsed)*1000);
+    ManTech::Diag::Record(ManTech::Diag::Metric::Scripts,std::uint64_t(performanceScriptElapsed)*1000);
+    ManTech::Diag::Record(ManTech::Diag::Metric::Send,std::uint64_t(performanceSendElapsed)*1000);
+    ManTech::Diag::Record(ManTech::Diag::Metric::MovementFlush,std::uint64_t(performanceMovementFlushElapsed)*1000);
 
     if (performanceLogging)
     {
