@@ -86,7 +86,10 @@ void VisibleNotifier::Notify()
         else
         {
             player.GetClientGuids().erase(*itr);
-            sLog.outCustomLog("Object was %s in current map.", player.GetMap()->m_objRemoveList.find(*itr) == player.GetMap()->m_objRemoveList.end() ? "not found" : "found");
+#ifdef ENABLE_PLAYERBOTS
+            if (player.isRealPlayer())
+#endif
+                sLog.outCustomLog("Object was %s in current map.", player.GetMap()->m_objRemoveList.find(*itr) == player.GetMap()->m_objRemoveList.end() ? "not found" : "found");
         }
         
 
