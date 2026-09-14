@@ -52,6 +52,41 @@ int main()
     }
     CHECK(MemoryLedger::Read(MemoryKind::AuraBuckets).bytes == before.bytes);
 
+    {
+        CHECK(sizeof(SparseListArray<int,317>) < 512);
+        const auto indexes=MemoryLedger::Read(MemoryKind::AuraIndexes);
+        {
+            SparseListArray<int,317> owner;
+            for(unsigned i=0;i<317;++i)CHECK(owner[i].empty());
+            CHECK(MemoryLedger::Read(MemoryKind::AuraIndexes).bytes==indexes.bytes);
+            std::vector<std::thread> threads;
+            for(unsigned t=0;t<12;++t)threads.emplace_back([&,t] {
+                for(unsigned j=0;j<317;++j) {
+                    unsigned n=(j*19+t)%317;
+                    auto* first=&owner.Stable(n);
+                    CHECK(first==&owner.Stable(n));
+                }
+            });
+            for(auto& thread:threads)thread.join();
+            CHECK(MemoryLedger::Read(MemoryKind::AuraIndexes).count==indexes.count+40);
+            CHECK(MemoryLedger::Read(MemoryKind::AuraBuckets).count==before.count+317);
+            std::array<std::list<int>,317> reference;
+            // Mutations retain the original single-owner contract.
+            for(unsigned n=0;n<10000;++n) {
+                auto i=(n*37)%317;
+                if(n%7==0){owner.Mutable(i).clear();reference[i].clear();}
+                else {owner.Mutable(i).push_back(n);reference[i].push_back(n);}
+                CHECK(owner[i]==reference[i]);
+            }
+            auto* last=&owner.Stable(316);
+            auto end=last->end();owner.Mutable(316).clear();
+            CHECK(last==&owner.Stable(316)&&end==owner.Stable(316).end());
+        }
+        CHECK(MemoryLedger::Read(MemoryKind::AuraIndexes).count==indexes.count);
+        CHECK(MemoryLedger::Read(MemoryKind::AuraIndexes).bytes==indexes.bytes);
+        CHECK(MemoryLedger::Read(MemoryKind::AuraBuckets).bytes==before.bytes);
+    }
+
     std::shared_ptr<WriteBudget::Token> survivor;
     {
         WriteBudget first, second;
