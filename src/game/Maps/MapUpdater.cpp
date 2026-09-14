@@ -80,6 +80,9 @@ void MapUpdater::schedule_update(Worker* worker)
 
     ++pending_requests;
     peak_pending_requests = std::max(peak_pending_requests, pending_requests);
+    #ifdef MANTECH_DEV_DIAGNOSTICS
+    worker->diagQueued=ManTech::Diag::Now();
+#endif
     _queue.Push(std::move(worker));
 }
 
@@ -116,7 +119,14 @@ void MapUpdater::WorkerThread()
             return;
         }
 
-        request->execute();
+        {
+#ifdef MANTECH_DEV_DIAGNOSTICS
+            MANTECH_DIAG_CONTEXT(unsigned(request->diagContext>>32),unsigned(request->diagContext));
+            ManTech::Diag::JobQueued(request->diagQueued,request->DiagnosticName());
+            MANTECH_DIAG_SCOPE(JobExecute,1,request->DiagnosticName());
+#endif
+            request->execute();
+        }
 
         delete request;
     }

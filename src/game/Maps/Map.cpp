@@ -1215,7 +1215,7 @@ void Map::Update(const uint32& t_diff)
         taskGroup.Add();
         updater.schedule_update(new IdleBotAIUpdateWorker(m_idleBotDispatchUpdates.data(),
             m_idleBotDispatchUpdates.size(), jitterMs, taskGroup, updater, idleCost));
-        taskGroup.Wait();
+        taskGroup.Wait("idle bot batch");
         if (performanceLogging)
         {
             idleWaitMs = WorldTimer::getMSTimeDiff(parallelBotStart, WorldTimer::getMSTime());
@@ -1393,7 +1393,7 @@ void Map::Update(const uint32& t_diff)
 
         performanceCellChunks = static_cast<uint32>(workerObjects.size());
         const uint32 waitStart = WorldTimer::getMSTime();
-        taskGroup.Wait();
+        taskGroup.Wait("grid objects");
         s_watchdogPhase.store(8, std::memory_order_relaxed);
         performanceCellWorkerElapsed = WorldTimer::getMSTimeDiff(waitStart, WorldTimer::getMSTime());
         if (performanceCellWorkerElapsed > sWorld.getConfig(CONFIG_UINT32_MAP_CELL_MAX_WAIT_MS))
@@ -2985,7 +2985,7 @@ void Map::SendObjectUpdates()
             updater.schedule_update(new ObjectUpdateBuildWorker(std::move(chunk), *parallelUpdates.back(), taskGroup, updater));
         }
 
-        taskGroup.Wait();
+        taskGroup.Wait("object update packets");
     }
     else
         for (Object* object : objectsToUpdate)

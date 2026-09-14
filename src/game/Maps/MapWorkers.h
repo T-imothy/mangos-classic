@@ -51,8 +51,9 @@ class MapUpdateTaskGroup
                 m_condition.notify_all();
         }
 
-        void Wait()
+        void Wait(char const* diagnosticName = "map task group")
         {
+            MANTECH_DIAG_SCOPE(TaskWait,1,diagnosticName);
             std::unique_lock<std::mutex> lock(m_lock);
             m_condition.wait(lock, [this]() { return m_pending == 0; });
         }
@@ -69,6 +70,10 @@ class Worker
         Worker(MapUpdater& updater) : m_updater(updater) {}
         virtual ~Worker() = default;
         virtual void execute() {};
+#ifdef MANTECH_DEV_DIAGNOSTICS
+        std::uint64_t diagQueued=0,diagContext=ManTech::Diag::Context;
+        virtual char const* DiagnosticName() const { return "other job"; }
+#endif
 
     protected:
         MapUpdater& GetWorker() { return m_updater; }
@@ -85,9 +90,13 @@ class MapUpdateWorker : public Worker
         {
 #ifdef MANTECH_DEV_DIAGNOSTICS
             m_diagQueued=ManTech::Diag::Now();
+            diagContext=(std::uint64_t(map.GetId())<<32)|map.GetInstanceId();
 #endif
         }
 
+        #ifdef MANTECH_DEV_DIAGNOSTICS
+        char const* DiagnosticName() const override { return "map update"; }
+#endif
         void execute() override
         {
 #ifdef MANTECH_DEV_DIAGNOSTICS
@@ -113,6 +122,9 @@ class GridCrawler : public Worker
             Worker(updater), m_map(map), m_cells(std::move(cells)), m_objects(objects), m_diff(diff), m_group(group)
         {}
 
+        #ifdef MANTECH_DEV_DIAGNOSTICS
+        char const* DiagnosticName() const override { return "grid objects"; }
+#endif
         void execute() override
         {
     MANTECH_DIAG_CONTEXT(m_map.GetId(),m_map.GetInstanceId());
@@ -148,6 +160,9 @@ class ObjectUpdateBuildWorker : public Worker
             Worker(updater), m_objects(std::move(objects)), m_updates(updates), m_group(group)
         {}
 
+        #ifdef MANTECH_DEV_DIAGNOSTICS
+        char const* DiagnosticName() const override { return "object update packets"; }
+#endif
         void execute() override
         {
 #ifdef MANTECH_DEV_DIAGNOSTICS
@@ -179,6 +194,9 @@ class IdleBotAIUpdateWorker : public Worker
             Worker(updater), m_updates(updates), m_count(count), m_jitterMs(jitterMs), m_group(group), m_cost(cost)
         {}
 
+        #ifdef MANTECH_DEV_DIAGNOSTICS
+        char const* DiagnosticName() const override { return "idle bot batch"; }
+#endif
         void execute() override
         {
 #ifdef MANTECH_DEV_DIAGNOSTICS

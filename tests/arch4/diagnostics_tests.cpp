@@ -28,6 +28,21 @@ int main(){
     std::filesystem::create_directories("logs");SaveTrace(1);auto snap=Snapshot();Publish("logs/test.json",snap);
     std::ifstream f("logs/DevDiagnostics-trace-1.json");std::string trace((std::istreambuf_iterator<char>(f)),{});
     check(trace.find("overwritten_records")!=std::string::npos&&trace.find("ring overflow")!=std::string::npos);
+    // Slow evidence persists without enabling a manual trace and carries map/job identity.
+    TraceDeadline=0;auto slowBefore=thread->slowCount.load();auto at=Now();
+    Slow(*thread,Metric::JobExecute,LabelId("fixture job"),at-5000,5000,2000,(530ULL<<32)|7);
+    check(thread->slowCount.load()==slowBefore+1);
+    Slow(*thread,Metric::JobExecute,0,at-100,100,0,0);
+    check(thread->slowCount.load()==slowBefore+1);
+    auto slow=SlowJson();check(slow.find("fixture job")!=std::string::npos&&slow.find("os_thread_id")!=std::string::npos);
+    // A workload of hundreds of names and several metrics should fit without the old collisions.
+    auto drops=thread->namedDrops.load();for(unsigned i=0;i<350;++i){char name[40];std::snprintf(name,sizeof(name),"fixture operation %u",i);auto id=LabelId(name);Named(*thread,unsigned(Metric::BotValue),id,50);Named(*thread,unsigned(Metric::BotTrigger),id,30);}
+    check(thread->namedDrops.load()==drops);
+    // Native heap summary must observe a private heap allocation and its release.
+    HANDLE heap=HeapCreate(0,0,0);check(heap!=nullptr);auto block=HeapAlloc(heap,0,4*1024*1024);check(block!=nullptr);
+    auto heapBefore=HeapSnapshot();check(heapBefore.find("allocated_bytes")!=std::string::npos);
+    check(HeapFree(heap,0,block)!=0);auto heapAfter=HeapSnapshot();check(heapBefore!=heapAfter);check(HeapDestroy(heap)!=0);
+    Publish("logs/test-heaps-before.json",heapBefore);Publish("logs/test-heaps-after.json",heapAfter);
     auto start=Now();for(unsigned i=0;i<1000000;++i){Scope s(Metric::BotValue,32,"overhead fixture");}auto on=Now()-start;
     Enabled=false;start=Now();for(unsigned i=0;i<1000000;++i){Scope s(Metric::BotValue,32,"overhead fixture");}auto off=Now()-start;
     std::cout<<"fixed_capacity_bytes="<<baseline<<" scoped_calls=1000000 enabled_us="<<on<<" disabled_us="<<off<<"\n";

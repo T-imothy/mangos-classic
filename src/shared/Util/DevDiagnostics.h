@@ -30,10 +30,10 @@ enum class Metric : unsigned {
     BotBatch, PlayerCore, Objects, Scripts, Send, MovementFlush,
     Player, Creature, Auras, Spell, Movement, Path, Visibility, Session,
     Packet, DbCallbacks, BotAI, BotReaction, BotDecision, BotTrigger,
-    BotUseful, BotPossible, BotExecute, BotValue, DbExecute, Count
+    BotUseful, BotPossible, BotExecute, BotValue, DbExecute, JobQueue, JobExecute, TaskWait, DbCall, DbLock, Count
 };
-inline constexpr char const* Names[]={"world","map_batch","map_update","map_queue_wait","map_barrier_wait","grid_worker","object_build_worker","map_bot_batch","map_player_core","map_objects","map_scripts","map_send","map_movement_flush","player_update","creature_update","auras","spell_update","movement","pathfinding","visibility","session","packet","database_callbacks","bot_ai","bot_reaction","bot_decision","bot_trigger","bot_action_useful","bot_action_possible","bot_action_execute","bot_value","database_execute"};
-inline constexpr unsigned Metrics=unsigned(Metric::Count), MaxThreads=64, Bins=256, TraceCapacity=2048, NamedCapacity=128, LabelCapacity=1024;
+inline constexpr char const* Names[]={"world","map_batch","map_update","map_queue_wait","map_barrier_wait","grid_worker","object_build_worker","map_bot_batch","map_player_core","map_objects","map_scripts","map_send","map_movement_flush","player_update","creature_update","auras","spell_update","movement","pathfinding","visibility","session","packet","database_callbacks","bot_ai","bot_reaction","bot_decision","bot_trigger","bot_action_useful","bot_action_possible","bot_action_execute","bot_value","database_execute","job_queue_wait","job_execute","task_group_wait","mysql_call","database_connection_lock"};
+inline constexpr unsigned Metrics=unsigned(Metric::Count), MaxThreads=64, Bins=256, TraceCapacity=2048, NamedCapacity=2048, LabelCapacity=4096, SlowCapacity=512;
 inline std::uint64_t Now() {return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();}
 inline unsigned Bucket(std::uint64_t us) { auto ms=us/1000; return ms<128 ? unsigned(ms) : unsigned(std::min<std::uint64_t>(255,128+(ms-128)/8)); }
 inline std::uint64_t Upper(unsigned b) { return b==255 ? 0 : (b<128 ? (b+1)*1000ULL : (128+(b-128+1)*8)*1000ULL); }
@@ -48,6 +48,8 @@ struct alignas(64) Thread {
     std::array<Stat,Metrics> stats{};
     std::array<NamedStat,NamedCapacity> named{};
     std::array<Event,TraceCapacity> events{};
+    std::array<Event,SlowCapacity> slow{};
+    std::atomic<std::uint64_t> slowCount{0},osId{0};
     std::atomic<std::uint64_t> eventCount{0},namedDrops{0};
 };
 struct Label {std::atomic<std::uint64_t> hash{0};char text[96]{};};
@@ -63,7 +65,7 @@ inline thread_local std::uint64_t Context=0;
 inline char const* MapLabel(){thread_local char name[80];std::snprintf(name,sizeof(name),"map:%u instance:%u",unsigned(Context>>32),unsigned(Context));return name;}
 inline thread_local std::array<std::uint64_t,Metrics> Sequence{};
 inline Thread* GetThread() {
-    if(!Registered) {Registered=true;auto id=Assigned.fetch_add(1);if(id<MaxThreads)Local=&Threads[id];else ThreadDrops.fetch_add(1);}
+    if(!Registered) {Registered=true;auto id=Assigned.fetch_add(1);if(id<MaxThreads){Local=&Threads[id];Local->osId=GetCurrentThreadId();}else ThreadDrops.fetch_add(1);}
     return Local;
 }
 inline unsigned LabelId(char const* s) {
@@ -82,11 +84,21 @@ inline void Named(Thread& t,unsigned metric,unsigned label,std::uint64_t us) {
     if(!label)return;
     std::uint64_t key=(std::uint64_t(metric+1)<<32)|label;
     for(unsigned n=0;n<16;++n) {
-        auto& s=t.named[(key*11400714819323198485ULL+n)%NamedCapacity];auto k=s.key.load(std::memory_order_relaxed);
+        auto& s=t.named[((key^(key>>32))*11400714819323198485ULL+n)%NamedCapacity];auto k=s.key.load(std::memory_order_relaxed);
         if(!k)s.key.compare_exchange_strong(k,key,std::memory_order_relaxed);
         if(k==key||(!k&&s.key.load(std::memory_order_relaxed)==key)) {s.samples.fetch_add(1,std::memory_order_relaxed);s.wall.fetch_add(us,std::memory_order_relaxed);Maximum(s.maximum,us);return;}
     }
     t.namedDrops.fetch_add(1,std::memory_order_relaxed);
+}
+// Always-on slow spans are separate from the short high-volume trace ring.
+// They describe sampled detailed operations, not every call or OS CPU stacks.
+inline void Slow(Thread& t,Metric m,unsigned label,std::uint64_t start,std::uint64_t duration,std::uint64_t cpu,std::uint64_t context) {
+    auto threshold=(m==Metric::World||m==Metric::Maps||m==Metric::Map||m==Metric::MapBarrier)?100000ULL:2000ULL;
+    if(duration<threshold)return;
+    auto n=t.slowCount.fetch_add(1,std::memory_order_relaxed);auto& e=t.slow[n%SlowCapacity];
+    e.version.fetch_add(1,std::memory_order_acq_rel);
+    e.start=start;e.duration=duration;e.cpu=cpu;e.context=context;e.kind=unsigned(m);e.label=label;e.generation=n+1;
+    e.version.fetch_add(1,std::memory_order_release);
 }
 inline void Trace(Thread& t,Metric m,unsigned label,std::uint64_t start,std::uint64_t duration,std::uint64_t cpu,std::uint64_t context) {
     if(!TraceDeadline.load(std::memory_order_relaxed)||Now()>TraceDeadline.load(std::memory_order_relaxed))return;
@@ -116,10 +128,10 @@ public:
         thread->stats[unsigned(m)].calls.fetch_add(1,std::memory_order_relaxed);
         if((++Sequence[unsigned(m)]%std::max(1u,every))!=0)return;
         t=thread;context=Context;label=LabelId(name);
-        cpuEnabled=(m==Metric::World||m==Metric::Map||m==Metric::Maps||m==Metric::MapBarrier||m==Metric::GridWorker||m==Metric::ObjectBuild);
+        cpuEnabled=(m==Metric::World||m==Metric::Map||m==Metric::Maps||m==Metric::MapBarrier||m==Metric::GridWorker||m==Metric::ObjectBuild||m==Metric::JobExecute||m==Metric::TaskWait);
         started=Now();if(cpuEnabled)cpuStarted=ThreadCpuMicros();
     }
-    void Finish(){if(t){auto duration=Now()-started;auto cpu=cpuEnabled?ThreadCpuMicros():0;cpu=cpu>=cpuStarted?cpu-cpuStarted:0;Sample(*t,metric,duration,cpu,cpuEnabled);Named(*t,unsigned(metric),label,duration);Trace(*t,metric,label,started,duration,cpu,context);t=nullptr;}}
+    void Finish(){if(t){auto duration=Now()-started;auto cpu=cpuEnabled?ThreadCpuMicros():0;cpu=cpu>=cpuStarted?cpu-cpuStarted:0;Sample(*t,metric,duration,cpu,cpuEnabled);Named(*t,unsigned(metric),label,duration);Trace(*t,metric,label,started,duration,cpu,context);Slow(*t,metric,label,started,duration,cpu,context);t=nullptr;}}
     ~Scope(){Finish();}
     bool Sampling()const{return t!=nullptr;}
     void SetName(char const* name){if(t&&name){label=LabelId(name);started=Now();if(cpuEnabled)cpuStarted=ThreadCpuMicros();}}
@@ -131,8 +143,13 @@ inline void Record(Metric m,std::uint64_t us) {
 }
 inline void Queue(std::uint64_t queued,unsigned map,unsigned instance) {
     if(!queued||!Enabled.load(std::memory_order_relaxed))return;
-    if(auto t=GetThread()){auto us=Now()-queued;Record(Metric::MapQueue,us);Trace(*t,Metric::MapQueue,0,queued,us,0,(std::uint64_t(map)<<32)|instance);}
+    if(auto t=GetThread()){auto us=Now()-queued;Record(Metric::MapQueue,us);Trace(*t,Metric::MapQueue,0,queued,us,0,(std::uint64_t(map)<<32)|instance);Slow(*t,Metric::MapQueue,0,queued,us,0,(std::uint64_t(map)<<32)|instance);}
 }
+inline void JobQueued(std::uint64_t queued,char const* name) {
+    if(!Enabled.load(std::memory_order_relaxed)||!queued)return;
+    if(auto t=GetThread()){auto us=Now()-queued;auto label=LabelId(name);Record(Metric::JobQueue,us);Named(*t,unsigned(Metric::JobQueue),label,us);Slow(*t,Metric::JobQueue,label,queued,us,0,Context);Trace(*t,Metric::JobQueue,label,queued,us,0,Context);}
+}
+
 #else
 class Scope {public: explicit Scope(Metric,unsigned=1,char const* = nullptr){}};
 class MapContext {public:MapContext(unsigned,unsigned){}};

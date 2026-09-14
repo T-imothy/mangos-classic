@@ -11,6 +11,8 @@
 #include <thread>
 #include <mutex>
 #include <psapi.h>
+#include <vector>
+#include "Util/HeapDiagnostics.h"
 namespace ManTech::Diag {
 inline std::string Json(char const* s) {std::string r="\"";for(;*s;++s){if(*s=='"'||*s=='\\')r+='\\';if(static_cast<unsigned char>(*s)>=32)r+=*s;}return r+'"';}
 inline std::uint64_t Percentile(std::array<std::uint64_t,Bins> const& h,unsigned percent) {
@@ -20,6 +22,17 @@ inline std::uint64_t Percentile(std::array<std::uint64_t,Bins> const& h,unsigned
 inline void Publish(char const* path,std::string const& contents) {
     std::string temp=std::string(path)+".tmp";{std::ofstream f(temp,std::ios::binary);f<<contents;if(!f)return;}
     MoveFileExA(temp.c_str(),path,MOVEFILE_REPLACE_EXISTING);
+}
+inline std::string AllocationJson(){auto a=ReadAllocationTotals();std::ostringstream o;o<<"{\"allocated_sample_bytes\":"<<a.allocated<<",\"freed_sample_bytes\":"<<a.freed<<",\"live_sample_bytes\":"<<a.live<<",\"live_samples\":"<<a.count<<",\"samples\":"<<a.samples<<",\"allocation_drops\":"<<a.drops<<",\"site_drops\":"<<a.siteDrops<<",\"probability_denominator\":"<<a.probability<<",\"recording\":"<<(a.recording?"true":"false")<<'}';return o.str();}
+inline std::string SlowJson(){
+    struct Row{std::uint64_t start,duration,cpu,context,kind,label,id,thread,os;};
+    std::vector<Row> rows;auto now=Now();std::uint64_t total=0;
+    for(unsigned t=0;t<std::min(Assigned.load(),MaxThreads);++t){total+=Threads[t].slowCount.load();for(auto& e:Threads[t].slow){auto version=e.version.load(std::memory_order_acquire);if(version&1)continue;Row r{e.start.load(),e.duration.load(),e.cpu.load(),e.context.load(),e.kind.load(),e.label.load(),e.generation.load(),t,Threads[t].osId.load()};if(version!=e.version.load(std::memory_order_acquire)||!r.id||r.kind>=Metrics||r.start+r.duration+15000000<now)continue;rows.push_back(r);}}
+    std::sort(rows.begin(),rows.end(),[](auto const& a,auto const& b){return a.duration>b.duration;});
+    auto available=rows.size();std::vector<Row> selected;unsigned major=0,detail=0;
+    for(auto const& r:rows){bool coarse=r.kind<=unsigned(Metric::ObjectBuild)||r.kind==unsigned(Metric::JobQueue)||r.kind==unsigned(Metric::JobExecute)||r.kind==unsigned(Metric::TaskWait);auto& count=coarse?major:detail;if(count++<100)selected.push_back(r);}rows.swap(selected);std::ostringstream o;
+    o<<"{\"monotonic_us\":"<<now<<",\"threshold_detail_us\":2000,\"threshold_world_map_us\":100000,\"recorded_total\":"<<total<<",\"recent_available\":"<<available<<",\"spans\":[";
+    bool first=true;for(auto const& r:rows){if(!first)o<<',';first=false;o<<"{\"metric\":"<<Json(Names[r.kind])<<",\"start_us\":"<<r.start<<",\"duration_us\":"<<r.duration<<",\"cpu_us\":"<<r.cpu<<",\"thread_slot\":"<<r.thread<<",\"os_thread_id\":"<<r.os<<",\"map\":"<<(r.context>>32)<<",\"instance\":"<<(r.context&0xffffffff)<<",\"sequence\":"<<r.id;if(r.label&&r.label<=LabelCapacity&&Labels[r.label-1].hash.load(std::memory_order_acquire)>=2)o<<",\"operation\":"<<Json(Labels[r.label-1].text);o<<'}';}o<<"],\"coverage\":\"Largest 100 major and 100 detailed retained slow spans completed in the last 15 seconds; fixed per-thread rings may overwrite detail. Detailed operations remain sampled. Concurrent nested spans overlap and must not be summed.\"}";return o.str();
 }
 inline std::string MemoryJson() {
     PROCESS_MEMORY_COUNTERS_EX p{};p.cb=sizeof(p);GetProcessMemoryInfo(GetCurrentProcess(),reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&p),sizeof(p));
@@ -47,7 +60,7 @@ inline std::string Snapshot() {
     }
     s<<"],\"named_samples\":[";bool first=true;std::uint64_t drops=0;
     for(unsigned t=0;t<n;++t){drops+=Threads[t].namedDrops.load();for(auto& a:Threads[t].named){auto key=a.key.load();if(!key)continue;auto label=unsigned(key&0xffffffff);auto m=unsigned(key>>32)-1;if(label==0||label>LabelCapacity||m>=Metrics||Labels[label-1].hash.load(std::memory_order_acquire)<2)continue;if(!first)s<<',';first=false;s<<"{\"thread_slot\":"<<t<<",\"metric\":"<<Json(Names[m])<<",\"name\":"<<Json(Labels[label-1].text)<<",\"samples\":"<<a.samples.load()<<",\"sampled_wall_us\":"<<a.wall.load()<<",\"max_us\":"<<a.maximum.load()<<'}';}}
-    s<<"],\"named_drops\":"<<drops<<",\"memory\":"<<MemoryJson()<<",\"notes\":\"Counters are cumulative concurrent snapshots. Detailed operations sample every 32 calls; names contain sampled counts. Durations are inclusive; do not sum nested scopes or parallel workers. Percentiles are histogram upper bounds (0 with overflow means unbounded). CPU clocks have OS resolution limits.\"}";
+    s<<"],\"named_drops\":"<<drops<<",\"allocation_totals\":"<<AllocationJson()<<",\"slow_operations\":"<<SlowJson()<<",\"memory\":"<<MemoryJson()<<",\"notes\":\"Counters are cumulative concurrent snapshots. Detailed operations sample every 32 calls; names contain sampled counts. Durations are inclusive; do not sum nested scopes or parallel workers. Percentiles are histogram upper bounds (0 with overflow means unbounded). CPU clocks have OS resolution limits.\"}";
     return s.str();
 }
 inline void SaveTrace(std::uint64_t generation) {
@@ -66,19 +79,22 @@ inline void SaveTrace(std::uint64_t generation) {
 class Observer {
     std::atomic<bool> stopping{false};std::thread worker;
     void Run() {
-        std::uint64_t next=0,tracePending=0,memoryDeadline=0;
+        IgnoreAllocationProfileThread();
+        std::uint64_t next=0,tracePending=0,memoryDeadline=0,retentionDeadline=0;
         while(!stopping.load()) {
             auto now=Now();
             std::ifstream command("logs/DevDiagnostics.control");std::string op;unsigned seconds=0;
             if(command>>op){command>>seconds;command.close();std::remove("logs/DevDiagnostics.control");
                 if(op=="enabled")Enabled.store(seconds!=0);
                 if(op=="capture"&&!tracePending){seconds=std::clamp(seconds,1u,30u);for(auto& t:Threads)t.eventCount.store(0);tracePending=TraceGeneration.fetch_add(1)+1;TraceDeadline.store(now+seconds*1000000ULL);}
-                if(op=="memory"&&!memoryDeadline){seconds=std::clamp(seconds,1u,60u);StartAllocationProfile();memoryDeadline=now+seconds*1000000ULL;}
+                if(op=="heap"&&!memoryDeadline&&!retentionDeadline)Publish("logs/DevDiagnostics-heaps.json",HeapSnapshot());
+                if(op=="memory"&&!memoryDeadline&&!retentionDeadline){seconds=std::clamp(seconds,1u,60u);Publish("logs/DevDiagnostics-heaps-before.json",HeapSnapshot());Publish("logs/DevDiagnostics-retention-before.json",Snapshot());StartAllocationProfile();memoryDeadline=Now()+seconds*1000000ULL;}
                 next=0;
             }
             if(tracePending&&now>TraceDeadline.load()+500000){TraceDeadline.store(0);SaveTrace(tracePending);tracePending=0;}
-            if(memoryDeadline&&now>=memoryDeadline){StopAllocationProfile();WriteAllocationProfile();memoryDeadline=0;}
-            if(now>=next){auto started=Now();auto data=Snapshot();Publish("logs/DevDiagnostics-latest.json",data);std::error_code ec;auto size=std::filesystem::file_size("logs/DevDiagnostics-history.jsonl",ec);if(!ec&&size>32*1024*1024)MoveFileExA("logs/DevDiagnostics-history.jsonl","logs/DevDiagnostics-history.previous.jsonl",MOVEFILE_REPLACE_EXISTING);std::ofstream f("logs/DevDiagnostics-history.jsonl",std::ios::app);f<<data<<'\n';next=Now()+10000000;Publish("logs/DevDiagnostics-observer.json","{\"last_snapshot_us\":"+std::to_string(Now()-started)+",\"memory_capture_active\":"+(memoryDeadline?"true":"false")+"}");}
+            if(memoryDeadline&&now>=memoryDeadline){StopAllocationProfile();Publish("logs/DevDiagnostics-retention-end.json",Snapshot());Publish("logs/DevDiagnostics-heaps-end.json",HeapSnapshot());WriteAllocationProfile();memoryDeadline=0;retentionDeadline=Now()+60000000;}
+            if(retentionDeadline&&now>=retentionDeadline){Publish("logs/DevDiagnostics-retention-after.json",Snapshot());Publish("logs/DevDiagnostics-heaps-after.json",HeapSnapshot());WriteAllocationProfile();retentionDeadline=0;}
+            if(now>=next){auto started=Now();auto data=Snapshot();Publish("logs/DevDiagnostics-latest.json",data);std::error_code ec;auto size=std::filesystem::file_size("logs/DevDiagnostics-history.jsonl",ec);if(!ec&&size>32*1024*1024)MoveFileExA("logs/DevDiagnostics-history.jsonl","logs/DevDiagnostics-history.previous.jsonl",MOVEFILE_REPLACE_EXISTING);std::ofstream f("logs/DevDiagnostics-history.jsonl",std::ios::app);f<<data<<'\n';next=Now()+10000000;Publish("logs/DevDiagnostics-observer.json","{\"last_snapshot_us\":"+std::to_string(Now()-started)+",\"memory_capture_active\":"+((memoryDeadline||retentionDeadline)?"true":"false")+"}");}
             for(unsigned n=0;n<10&&!stopping.load();++n)std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
         if(memoryDeadline){StopAllocationProfile();WriteAllocationProfile();}
