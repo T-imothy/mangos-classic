@@ -3533,8 +3533,14 @@ void Spell::SetCastItem(Item* item)
         m_itemCastSpell = true;
 }
 
+ItemPrototype const* Spell::GetCooldownItemPrototype() const
+{
+    return m_CastItem ? m_CastItem->GetProto() : nullptr;
+}
+
 void Spell::SendSpellCooldown()
 {
+    ItemPrototype const* cooldownItem = GetCooldownItemPrototype();
     // (SPELL_ATTR_DISABLED_WHILE_ACTIVE) have infinity cooldown, (SPELL_ATTR_PASSIVE) passive cooldown at triggering
     if (m_spellInfo->HasAttribute(SPELL_ATTR_PASSIVE) || m_channelOnly)
         return;
@@ -3549,7 +3555,7 @@ void Spell::SendSpellCooldown()
     if (portableUtility)
         cooldownOnEvent = false;
 
-    m_trueCaster->AddCooldown(*m_spellInfo, m_CastItem ? m_CastItem->GetProto() : nullptr, cooldownOnEvent);
+    m_trueCaster->AddCooldown(*m_spellInfo, cooldownItem, cooldownOnEvent);
 
     // Item-spell cooldowns normally rely on the client starting its own timer.
     // Custom item templates are not reliable here on the 1.12 client, so send
