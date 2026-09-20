@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "bf26e879ddcc835a1a943f7fa1aecd323a606b20" # ManTech baseline; fixes cache churn and paladin blessing replacement
+        GIT_TAG "59ebd85493ada23e1f319fcea05f1bb83ccf7307" # ManTech baseline; fixes cache churn and paladin blessing replacement
   )
 
   FetchContent_GetProperties(PlayerBots)
