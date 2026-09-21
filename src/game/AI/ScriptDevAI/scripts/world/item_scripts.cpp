@@ -25,6 +25,7 @@ EndScriptData
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "Entities/GameObject.h"
+#include "Entities/PortableRepairVendor.h"
 #include "Maps/Map.h"
 #include "Spells/Spell.h"
 #include "Spells/Scripts/SpellScript.h"
@@ -38,6 +39,41 @@ namespace
         ITEM_MANTECH_PORTABLE_MAILBOX     = 65000,
         GO_PORTABLE_MAILBOX               = 142102,
         PORTABLE_MAILBOX_LIFETIME_SECONDS = 600,
+    };
+
+    // A distinct item-use carrier prevents sharing the native engineering cooldown.
+    // Non-item uses of the carrier (including world events) remain untouched.
+    struct ManTechPortableRepairCarrierSpell : public SpellScript
+    {
+        SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
+        {
+            Item* item = spell->GetCastItem();
+            if (!item || item->GetEntry() != PortableRepairVendor::HAMMER_ITEM)
+                return SPELL_CAST_OK;
+            WorldObject* caster = spell->GetTrueCaster();
+            if (!caster || caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld() ||
+                !ObjectMgr::GetCreatureTemplate(PortableRepairVendor::CREATURE_ENTRY))
+                return SPELL_FAILED_NOT_HERE;
+            return SPELL_CAST_OK;
+        }
+
+        void OnCast(Spell* spell) const override
+        {
+            Item* item = spell->GetCastItem();
+            WorldObject* caster = spell->GetTrueCaster();
+            if (!item || item->GetEntry() != PortableRepairVendor::HAMMER_ITEM || !caster ||
+                caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld())
+                return;
+
+            Player* player = static_cast<Player*>(caster);
+            float x, y, z;
+            player->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE, 1.0f);
+            const uint32 faction = player->GetTeam() == ALLIANCE ? 12 : 29;
+            if (!player->SummonCreature(PortableRepairVendor::CREATURE_ENTRY, x, y, z,
+                    player->GetOrientation(), TEMPSPAWN_TIMED_OR_DEAD_DESPAWN,
+                    600000, false, false, 0, faction))
+                player->GetSession()->SendNotification("The portable repair hammer could not be used here.");
+        }
     };
 
     struct ManTechPortableAuctioneerSpell : public SpellScript
@@ -524,5 +560,6 @@ void AddSC_item_scripts()
     RegisterSpellScript<Area52Transporter>("spell_area52_transporter");
     RegisterSpellScript<LinkensBoomerang>("spell_linkens_boomerang");
     RegisterSpellScript<ManTechPortableMailboxSpell>("spell_mantech_portable_mailbox");
+    RegisterSpellScript<ManTechPortableRepairCarrierSpell>("spell_mantech_portable_repair_carrier");
     RegisterSpellScript<ManTechPortableAuctioneerSpell>("spell_mantech_portable_auctioneer");
 }
