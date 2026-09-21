@@ -429,10 +429,7 @@ void AddSC_areatrigger_scripts()
     pNewScript->pAreaTrigger = &AreaTrigger_at_twilight_grove;
     pNewScript->RegisterSelf();
 
-    pNewScript = new Script;
-    pNewScript->Name = "at_hive_tower";
-    pNewScript->pAreaTrigger = &AreaTrigger_at_hive_tower;
-    pNewScript->RegisterSelf();
+    // Trigger 3146 is registered by at_southwind_tower in silithus.cpp.
 
     pNewScript = new Script;
     pNewScript->Name = "at_wondervolt";

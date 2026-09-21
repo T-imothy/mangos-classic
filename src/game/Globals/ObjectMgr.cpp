@@ -1732,7 +1732,8 @@ void ObjectMgr::LoadCreatureModelInfo()
 
 void ObjectMgr::LoadCreatureConditionalSpawn()
 {
-    sCreatureConditionalSpawnStore.Load();
+    // Faction-dependent spawn overrides are optional; zero overrides is valid.
+    sCreatureConditionalSpawnStore.Load(false);
 
     // post processing
     for (uint32 i = 1; i < sCreatureConditionalSpawnStore.GetMaxEntry(); ++i)
