@@ -1,9 +1,9 @@
 # ManTech baseline module contract
 
 Classic's baseline requires BUILD_MODULES, BUILD_MODULE_DUALSPEC and
-BUILD_MODULE_TRAININGDUMMIES. Defaults are established before module discovery;
+BUILD_MODULE_TRAININGDUMMIES and BUILD_MODULE_TRANSMOG. Defaults are established before module discovery;
 an old CMake cache disabling a required module fails configuration. Reconfigure
-that cache explicitly with all three flags ON. Only deliberate non-baseline
+that cache explicitly with all four flags ON. Only deliberate non-baseline
 builds should set MANTECH_REQUIRE_BASELINE_MODULES=OFF. Auth-only builds are exempt.
 
 This fixes a release configuration omission: the dual-spec NPC's menu is built
@@ -29,3 +29,5 @@ for the stopped CHARACTER database, not a normal world migration. It reconciles
 existing single-spec snapshots and leaves purchased/secondary specs alone. Never
 run it speculatively on a healthy module-enabled realm. A receipt prevents repeat
 application. Production was not changed as part of the testing-branch fix.
+
+Transmog deployment and exact SQL: see MANTECH_TRANSMOG.md.
