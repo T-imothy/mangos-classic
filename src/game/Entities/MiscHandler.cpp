@@ -780,7 +780,7 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
 
     DEBUG_LOG("UAD: type %u, decompressedSize %u", type, decompressedSize);
 
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
         return;
 
     if (decompressedSize == 0)                              // erase
@@ -800,10 +800,12 @@ void WorldSession::HandleUpdateAccountData(WorldPacket& recv_data)
     dest.resize(decompressedSize);
 
     uLongf realSize = decompressedSize;
-    if (uncompress(const_cast<uint8*>(dest.contents()), &realSize, const_cast<uint8*>(recv_data.contents() + recv_data.rpos()), recv_data.size() - recv_data.rpos()) != Z_OK)
+    const uint32 compressedSize = uint32(recv_data.size() - recv_data.rpos());
+    const int decompressResult = uncompress(const_cast<uint8*>(dest.contents()), &realSize, const_cast<uint8*>(recv_data.contents() + recv_data.rpos()), compressedSize);
+    if (decompressResult != Z_OK)
     {
         recv_data.rpos(recv_data.wpos());                   // unneded warning spam in this case
-        sLog.outError("UAD: Failed to decompress account data");
+        sLog.outError("UAD: Failed to decompress account data (account=%u type=%u compressed=%u expected=%u zlib=%d)", GetAccountId(), type, compressedSize, decompressedSize, decompressResult);
         return;
     }
 
@@ -824,7 +826,7 @@ void WorldSession::HandleRequestAccountData(WorldPacket& recv_data)
 
     DEBUG_LOG("RAD: type %u", type);
 
-    if (type > NUM_ACCOUNT_DATA_TYPES)
+    if (type >= NUM_ACCOUNT_DATA_TYPES)
         return;
 
     AccountData* adata = GetAccountData(AccountDataType(type));
