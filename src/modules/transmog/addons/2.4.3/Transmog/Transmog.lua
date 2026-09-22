@@ -1243,7 +1243,7 @@ function Apply_OnClick()
         end
     end
 
-	Transmog:aSend("ApplyTransmog "..slots)
+	Transmog:aSend("ApplyTransmog "..string.gsub(slots, ",$", ""))
 end
 
 function Transmog:ApplyTransmogResult(success, data)
@@ -1570,7 +1570,7 @@ function Transmog:calculateCost(to)
 		TransmogFrameCurrencyText:Hide()
 		TransmogFrameCurrencyIcon:Hide()
     else
-		self:aSend("CalculateTransmogCost "..slots)
+		self:aSend("CalculateTransmogCost "..string.gsub(slots, ",$", ""))
 		TransmogFrameApplyButton:Disable()
     end
 end
