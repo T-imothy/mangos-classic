@@ -1504,7 +1504,7 @@ std::pair<bool, bool> ScriptAction::GetScriptProcessTargets(WorldObject* origina
         else if (m_script->data_flags & SCRIPT_FLAG_BUDDY_BY_SPAWN_GROUP) // Buddy by group
         {
             WorldObject* origin = originalSource ? originalSource : originalTarget;
-            if (origin->GetTypeId() == TYPEID_PLAYER && originalSource && originalSource->GetTypeId() != TYPEID_PLAYER)
+            if (origin && origin->GetTypeId() == TYPEID_PLAYER && originalTarget && originalTarget->GetTypeId() != TYPEID_PLAYER)
                 origin = originalTarget;
 
             SpawnGroupEntry* entry = m_map->GetMapDataContainer().GetSpawnGroup(m_script->buddyEntry);
@@ -1555,18 +1555,18 @@ std::pair<bool, bool> ScriptAction::GetScriptProcessTargets(WorldObject* origina
         else if (m_script->data_flags & SCRIPT_FLAG_BUDDY_BY_STRING_ID)
         {
             WorldObject* origin = originalSource ? originalSource : originalTarget;
-            if (origin->GetTypeId() == TYPEID_PLAYER && originalSource && originalSource->GetTypeId() != TYPEID_PLAYER)
+            if (origin && origin->GetTypeId() == TYPEID_PLAYER && originalTarget && originalTarget->GetTypeId() != TYPEID_PLAYER)
                 origin = originalTarget;
             auto worldObjects = m_map->GetWorldObjects(m_script->buddyEntry);
-            if (worldObjects == nullptr)
-                return { false, false };
-            if ((m_script->data_flags & SCRIPT_FLAG_ALL_ELIGIBLE_BUDDIES) != 0)
+            // An absent string ID must still reach TERMINATE_SCRIPT with buddyFound=false.
+            // Returning here skips the guard and lets subsequent relay steps run.
+            if (worldObjects && (m_script->data_flags & SCRIPT_FLAG_ALL_ELIGIBLE_BUDDIES) != 0)
             {
                 for (WorldObject* wo : *worldObjects)
                     if (!wo->IsCreature() || static_cast<Creature*>(wo)->IsAlive() != m_script->IsDeadOrDespawnedBuddy())
                         buddies.push_back(wo);
             }
-            else
+            else if (worldObjects)
             {
                 WorldObject* closest = nullptr;
                 for (WorldObject* wo : *worldObjects)
@@ -1590,7 +1590,7 @@ std::pair<bool, bool> ScriptAction::GetScriptProcessTargets(WorldObject* origina
 
             if (buddies.empty() && m_script->command != SCRIPT_COMMAND_TERMINATE_SCRIPT)
             {
-                sLog.outErrorDb(" DB-SCRIPTS: Process table `%s` id %u, command %u has buddy %u by pool id %u and no creature found in map %u (data-flags %u), skipping.", m_table, m_script->id, m_script->command, m_script->buddyEntry, m_script->searchRadiusOrGuid, m_map->GetId(), m_script->data_flags);
+                sLog.outErrorDb(" DB-SCRIPTS: Process table `%s` id %u, command %u has string ID %u with no eligible object within range %u in map %u (data-flags %u), skipping.", m_table, m_script->id, m_script->command, m_script->buddyEntry, m_script->searchRadiusOrGuid, m_map->GetId(), m_script->data_flags);
                 return { false, false };
             }
         }
@@ -1606,7 +1606,7 @@ std::pair<bool, bool> ScriptAction::GetScriptProcessTargets(WorldObject* origina
 
             // Prefer non-players as searcher
             WorldObject* origin = originalSource ? originalSource : originalTarget;
-            if (origin->GetTypeId() == TYPEID_PLAYER && originalSource && originalSource->GetTypeId() != TYPEID_PLAYER)
+            if (origin && origin->GetTypeId() == TYPEID_PLAYER && originalTarget && originalTarget->GetTypeId() != TYPEID_PLAYER)
                 origin = originalTarget;
 
             if (m_script->IsCreatureBuddy())
