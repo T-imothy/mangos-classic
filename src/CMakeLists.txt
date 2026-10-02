@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "2db61fcbb3e5481e2163d443998fd49daf74db90" # ManTech baseline: raid interrupts, rescue targets and escape fixes
+        GIT_TAG "f8f8ad7845645ca33c60e6ec72ca0658a420fb7f" # ManTech baseline: raid rescue, pursuit and healing objectives
   )
 
   FetchContent_GetProperties(PlayerBots)
