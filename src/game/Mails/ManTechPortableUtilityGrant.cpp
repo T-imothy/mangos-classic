@@ -107,6 +107,8 @@ bool ManTechPortableUtilityGrant::GrantToCharacter(ObjectGuid characterGuid, Pla
                                    "ManTech Portable Repair Hammer - 30 Minute Cooldown");
     granted |= SendSingleItemGrant(characterGuid, onlinePlayer, 65002, "portable_auctioneer_v1",
                                    "ManTech Camotron 9000 - Portable Auctioneer");
+    granted |= SendSingleItemGrant(characterGuid, onlinePlayer, 65004, "portable_bank_v1",
+                                   "ManTech Portable Bank - 30 Minute Cooldown");
     granted |= GrantLevelRewardToCharacter(characterGuid, onlinePlayer);
     return granted;
 }
@@ -143,6 +145,7 @@ void ManTechPortableUtilityGrant::BackfillExistingCharacters()
         "SELECT c.guid, c.account FROM characters c "
         "WHERE c.account<>0 AND c.deleteDate IS NULL AND ("
         "NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_auctioneer_v1') "
+        "OR NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_bank_v1') "
         "OR (NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_utilities_v1') "
         "AND (NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_mailbox_v1') "
         "OR NOT EXISTS (SELECT 1 FROM mantech_character_grants g WHERE g.guid=c.guid AND g.grant_key='portable_repair_v1')))) "

@@ -1,25 +1,31 @@
 int main() {
     ObjectGuid guid(HIGHGUID_PLAYER,1);Player player;
     auto grant=[&]{return ManTechPortableUtilityGrant::GrantToCharacter(guid,&player);};
-    fixture={};assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002}));
-    assert(!grant());assert(fixture.sent.size()==3);
-    fixture={};fixture.grants={"portable_utilities_v1"};assert(grant());assert((fixture.sent==std::vector<uint32>{65002}));
-    fixture={};fixture.grants={"portable_mailbox_v1","portable_repair_v1"};assert(grant());assert((fixture.sent==std::vector<uint32>{65002}));
+    fixture={};assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,65004}));
+    assert(!grant());assert(fixture.sent.size()==4);
+    fixture={};fixture.grants={"portable_utilities_v1"};assert(grant());assert((fixture.sent==std::vector<uint32>{65002,65004}));
+    fixture={};fixture.grants={"portable_mailbox_v1","portable_repair_v1"};assert(grant());assert((fixture.sent==std::vector<uint32>{65002,65004}));
     // Transfers with every combination of bag/bank, pending-mail and unsaved online ownership.
-    for(unsigned mask=0;mask<8;++mask)for(unsigned storage=0;storage<3;++storage){
+    for(unsigned mask=0;mask<16;++mask)for(unsigned storage=0;storage<3;++storage){
         fixture={};std::vector<uint32> expected;
-        for(unsigned i=0;i<3;++i){auto id=65000u+i;
+        for(unsigned i=0;i<4;++i){auto id=i==3?65004u:65000u+i;
             if(mask&(1u<<i)){
                 if(storage==0)fixture.inventory.insert(id);
                 if(storage==1)fixture.mail.insert(id);
                 if(storage==2)fixture.unsaved.insert(id);
             }else expected.push_back(id);
         }
-        grant();assert(fixture.sent==expected);assert(fixture.grants.size()==3);
+        grant();assert(fixture.sent==expected);assert(fixture.grants.size()==4);
         // Once recognized as owned, removing an item does not create another one-time gift.
         fixture.inventory.clear();fixture.mail.clear();fixture.unsaved.clear();
         assert(!grant());assert(fixture.sent==expected);
     }
+    // Existing players with all three older utilities receive only the new bank.
+    fixture={};fixture.grants={"portable_mailbox_v1","portable_repair_v1","portable_auctioneer_v1"};
+    assert(grant());assert((fixture.sent==std::vector<uint32>{65004}));assert(!grant());
+    // A copied bank in pending mail is recognized even with no local grant history.
+    fixture={};fixture.inventory={65000,65001,65002};fixture.mail={65004};
+    assert(!grant());assert(fixture.sent.empty());assert(fixture.grants.count("portable_bank_v1"));
     fixture={};fixture.bot=true;assert(!grant());assert(fixture.sent.empty());
     fixture={};fixture.eligible=false;assert(!grant());assert(fixture.sent.empty());
     fixture={};fixture.failedRead=true;assert(!grant());assert(fixture.sent.empty());assert(fixture.grants.empty());
@@ -48,7 +54,7 @@ int main() {
     fixture={};fixture.level=fixture.liveLevel=40;player.id=2;assert(!mount());player.id=1;
     fixture={};fixture.level=40;assert(ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(guid));
     fixture={};fixture.level=39;assert(!ManTechPortableUtilityGrant::GrantLevelRewardToCharacter(guid));
-    fixture={};fixture.level=fixture.liveLevel=40;assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,65003}));assert(!grant());
+    fixture={};fixture.level=fixture.liveLevel=40;assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,65004,65003}));assert(!grant());
     // Account security applies equally to login/level-up and offline backfill.
     // GM mode is irrelevant: rank 1+ accounts never qualify for this reward.
     for(auto security:{0u,1u,2u,3u,4u})for(bool online:{false,true}){
@@ -66,7 +72,7 @@ int main() {
     }
     // The existing portable utility policy is independent of the mount gift.
     fixture={};fixture.level=fixture.liveLevel=40;fixture.security=3;
-    assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002}));assert(!grant());
+    assert(grant());assert((fixture.sent==std::vector<uint32>{65000,65001,65002,65004}));assert(!grant());
     assert(!fixture.grants.count("mantech_black_war_raptor_v1"));
     std::cout<<"PASS rank-0-only reward: online, offline, all staff ranks, failed lookup and unchanged utilities\n";
     std::cout<<"PASS custom reward: levels, copies, bank/mail/unsaved, original item distinct, bots and one-time delivery\n";

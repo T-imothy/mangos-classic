@@ -3028,7 +3028,7 @@ SpellCastResult Spell::SpellStart(SpellCastTargets const* targets, Aura* trigger
         // Vanilla can leave an item spell's targeting visual active when a
         // server-side cooldown rejects the cast before Prepare(). Explicitly
         // terminate the portable utility cast on the client as well.
-        if (m_CastItem && (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001 || m_CastItem->GetEntry() == 65002))
+        if (m_CastItem && (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001 || m_CastItem->GetEntry() == 65002 || m_CastItem->GetEntry() == 65004))
             SendInterrupted(result);
         finish(false);
         return result;
@@ -3551,7 +3551,7 @@ void Spell::SendSpellCooldown()
     // Do not leave their cooldowns on hold: an on-hold cooldown is not
     // persisted at logout, which would let the item be reused after relogging.
     bool const portableUtility = m_CastItem &&
-        (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001 || m_CastItem->GetEntry() == 65002);
+        (m_CastItem->GetEntry() == 65000 || m_CastItem->GetEntry() == 65001 || m_CastItem->GetEntry() == 65002 || m_CastItem->GetEntry() == 65004);
     if (portableUtility)
         cooldownOnEvent = false;
 

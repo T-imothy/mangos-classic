@@ -76,6 +76,44 @@ namespace
         }
     };
 
+    struct ManTechPortableBankSpell : public SpellScript
+    {
+        SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
+        {
+            Item* item = spell->GetCastItem();
+            if (!item || item->GetEntry() != 65004)
+                return SPELL_CAST_OK;
+            WorldObject* caster = spell->GetTrueCaster();
+            CreatureInfo const* info = ObjectMgr::GetCreatureTemplate(65004);
+            if (!caster || caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld() ||
+                !info || !(info->NpcFlags & UNIT_NPC_FLAG_BANKER))
+                return SPELL_FAILED_NOT_HERE;
+            return SPELL_CAST_OK;
+        }
+
+        void OnCast(Spell* spell) const override
+        {
+            Item* item = spell->GetCastItem();
+            WorldObject* caster = spell->GetTrueCaster();
+            if (!item || item->GetEntry() != 65004 || !caster ||
+                caster->GetTypeId() != TYPEID_PLAYER || !caster->IsInWorld())
+                return;
+
+            Player* player = static_cast<Player*>(caster);
+            float x, y, z;
+            player->GetClosePoint(x, y, z, DEFAULT_WORLD_OBJECT_SIZE, 1.0f);
+            // A real, temporary banker retains native range, personal-bank
+            // storage and bag-purchase checks. It never exposes guild storage.
+            if (OnCheckCast(spell, false) != SPELL_CAST_OK ||
+                !player->SummonCreature(65004, x, y, z, player->GetOrientation(),
+                    TEMPSPAWN_TIMED_DESPAWN, 600000, false, false, 0, 35))
+            {
+                player->RemoveSpellCooldown(*spell->m_spellInfo);
+                player->GetSession()->SendNotification("The portable bank could not be summoned. Its cooldown was reset.");
+            }
+        }
+    };
+
     struct ManTechPortableAuctioneerSpell : public SpellScript
     {
         SpellCastResult OnCheckCast(Spell* spell, bool /*strict*/) const override
@@ -562,4 +600,5 @@ void AddSC_item_scripts()
     RegisterSpellScript<ManTechPortableMailboxSpell>("spell_mantech_portable_mailbox");
     RegisterSpellScript<ManTechPortableRepairCarrierSpell>("spell_mantech_portable_repair_carrier");
     RegisterSpellScript<ManTechPortableAuctioneerSpell>("spell_mantech_portable_auctioneer");
+    RegisterSpellScript<ManTechPortableBankSpell>("spell_mantech_portable_bank");
 }
