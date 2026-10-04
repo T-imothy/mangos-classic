@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "837650a0629810b85043126afa3a1ca0d8d8bd2a" # ManTech baseline: public bot raid summon save reconciliation
+        GIT_TAG "1a6ab21ca9ef1b702dd093acbcc71dc304848a82" # ManTech baseline: public bot transfer between raid instances
   )
 
   FetchContent_GetProperties(PlayerBots)
