@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "c1f7696600a913ae9e883c9234a2a0d2c9278951" # ManTech baseline: Molten Core fire and combat coordination fixes
+        GIT_TAG "837650a0629810b85043126afa3a1ca0d8d8bd2a" # ManTech baseline: public bot raid summon save reconciliation
   )
 
   FetchContent_GetProperties(PlayerBots)
