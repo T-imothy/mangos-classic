@@ -24,10 +24,10 @@
 
 // Normal assert.
 #define WPError(CONDITION) \
-do { \
-    if (!(CONDITION)) \
-        MaNGOS::FatalAssertion(STRINGIZE(CONDITION), __FILE__, __LINE__, __FUNCTION__); \
-} while (false)
+if (!(CONDITION)) \
+{ \
+    MaNGOS::FatalAssertion(STRINGIZE(CONDITION), __FILE__, __LINE__, __FUNCTION__); \
+}
 
 // Just warn.
 #define WPWarning(CONDITION) \

@@ -18,5 +18,8 @@ int main(int argc, char** argv)
     if (mode == "seh") RaiseException(EXCEPTION_ACCESS_VIOLATION, EXCEPTION_NONCONTINUABLE, 0, nullptr);
     int evaluated = 0;
     MANGOS_ASSERT(++evaluated == 1);
+    // Existing core and playerbot calls also omit the trailing semicolon.
+    MANGOS_ASSERT(evaluated == 1)
+    MANGOS_ASSERT(evaluated == 1)
     return mode == "normal" && evaluated == 1 ? 0 : 3;
 }
