@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "1a6ab21ca9ef1b702dd093acbcc71dc304848a82" # ManTech baseline: public bot transfer between raid instances
+        GIT_TAG "cd6c559f7c93d455dc43f1bfbde85fd4c605a4ba" # ManTech baseline: MC spawn focus, rune eligibility and Lothos raid followers
   )
 
   FetchContent_GetProperties(PlayerBots)
