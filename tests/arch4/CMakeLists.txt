@@ -119,6 +119,7 @@ if(BUILD_PLAYERBOTS)
 endif()
 
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME ground_path_endpoint COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/ground_path_regression.py ${PROJECT_SOURCE_DIR})
 add_test(NAME retention_visibility COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/contrib/tests/visibility_retention_regression.py)
 if(BUILD_PLAYERBOTS)
   add_test(NAME retention_travel COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/travel_route_recovery_regression.py)

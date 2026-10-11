@@ -138,6 +138,7 @@ class PathFinder
         void setStartPosition(const Vector3& point) { m_startPosition = point; }
         void setEndPosition(const Vector3& point) { m_actualEndPosition = point; m_endPosition = point; }
         void setActualEndPosition(const Vector3& point) { m_actualEndPosition = point; }
+        bool CanSkipPathPoint(const Vector3& previous, const Vector3& point, const Vector3& next) const;
         void NormalizePath();
         void SetCurrentNavMesh();
 
@@ -155,6 +156,7 @@ class PathFinder
         dtPolyRef getPolyByLocation(const float* point, float* distance);
         bool HaveTile(const Vector3& p) const;
 
+        void AdjustGroundPathEndpoint(float* point, dtPolyRef poly);
         void BuildPolyPath(const Vector3& startPos, const Vector3& endPos);
         void BuildPointPath(const float* startPoint, const float* endPoint);
         void BuildShortcut();
