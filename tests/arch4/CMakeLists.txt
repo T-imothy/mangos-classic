@@ -175,3 +175,14 @@ endif()
 if(WIN32 AND MSVC)
   add_test(NAME eternal_item_cooldown_override COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/item_cooldown_override_regression.py ${PROJECT_SOURCE_DIR})
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME priest_power_infusion COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/priest_power_infusion_regression.py)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME mc_trash_priority COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/mc_trash_priority_regression.py)
+  add_test(NAME encounter_damage_shield COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/encounter_damage_pause_regression.py)
+endif()
+
+add_test(NAME ragnaros_phase COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/ragnaros_phase_regression.py ${CMAKE_SOURCE_DIR})
