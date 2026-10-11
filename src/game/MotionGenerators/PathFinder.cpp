@@ -554,7 +554,10 @@ void PathFinder::BuildPolyPath(const Vector3& startPos, const Vector3& endPos)
             !m_sourceUnit->CanFly() && !m_sourceUnit->IsInWater() && !m_sourceUnit->HasHoverAura())
             BuildPointPath(startPoint, endPoint);
         else
+        {
             BuildShortcut();
+            m_type = farFromPoly ? PATHFIND_INCOMPLETE : PATHFIND_NORMAL;
+        }
         DEBUG_FILTER_LOG(LOG_FILTER_PATHFINDING, "++ BuildPolyPath :: path type %d\n", m_type);
         return;
     }

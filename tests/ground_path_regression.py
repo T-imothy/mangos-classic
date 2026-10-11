@@ -62,6 +62,17 @@ struct Vector3 {
 };
 constexpr float LINE_FAULT=0.5f;
 struct Optimizer{bool CanSkipPathPoint(const Vector3&,const Vector3&,const Vector3&)const;};
+#define DEBUG_FILTER_LOG(...) ((void)0)
+constexpr int PATHFIND_NORMAL=1,PATHFIND_SHORTCUT=2,PATHFIND_INCOMPLETE=4,PATHFIND_NOPATH=8;
+struct PolygonPath {
+ Unit* m_sourceUnit;bool m_ignoreNormalization=false;int m_type=0,m_polyLength=0,points=0,shortcuts=0;
+ bool pointFailure=false;dtPolyRef m_pathPolyRefs[2];
+ void BuildPointPath(float*,float*){++points;if(pointFailure)m_type=PATHFIND_NOPATH;}
+ void BuildShortcut(){++shortcuts;m_type=PATHFIND_SHORTCUT;}
+ void Run(bool farFromPoly=false){dtPolyRef startPoly=1,endPoly=1;float startPoint[3]={},endPoint[3]={};
+"""+same+r"""
+ }
+};
 """+method+skipmethod.replace('PathFinder::CanSkipPathPoint','Optimizer::CanSkipPathPoint')+r"""
 int main(){
  Unit unit;Mesh mesh;Query query;PathFinder path{&unit,false,&mesh,&query};
@@ -90,8 +101,17 @@ int main(){
  assert(!optimizer.CanSkipPathPoint({0,0,0},{3,0,0},{2,0,0}));
  assert(!optimizer.CanSkipPathPoint({0,0,0},{1,0,0},{0,0,0}));
  assert(!optimizer.CanSkipPathPoint({958,-937,-184},{959,-937,-181.8f},{960,-937,-184}));
+ {PolygonPath same{&unit};same.Run();assert(same.m_type==PATHFIND_NORMAL&&same.points==1&&!same.shortcuts);
+  same.pointFailure=true;same.Run();assert(same.m_type==PATHFIND_NOPATH);}
+ for(bool* flag:{&unit.transport,&unit.fly,&unit.water,&unit.hover}){
+  *flag=true;PolygonPath same{&unit};same.Run();assert(same.m_type==PATHFIND_NORMAL&&same.shortcuts==1&&!same.points);
+  same.Run(true);assert(same.m_type==PATHFIND_INCOMPLETE);*flag=false;
+ }
+ {PolygonPath same{nullptr};same.Run();assert(same.m_type==PATHFIND_NORMAL&&same.shortcuts==1);}
+ {PolygonPath same{&unit};same.m_ignoreNormalization=true;same.Run();assert(same.m_type==PATHFIND_NORMAL&&same.shortcuts==1);}
  puts("PASS native ground endpoint: buried coordinates, floor correction, liquid/flying/hover/transport, invalid and remote polygons");
  puts("PASS native path optimizer: hills, valleys, horizontal corners, backtracking, duplicate endpoints and translated coordinates");
+ puts("PASS native same-polygon dispatch: ground smoothing, failed paths, airborne/liquid/transport and map-only status preservation");
 }
 """
 with tempfile.TemporaryDirectory(prefix='mantech-ground-path-') as tmp:
