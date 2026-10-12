@@ -1420,6 +1420,9 @@ void Map::Update(const uint32& t_diff)
     for (WorldObject* object : objToUpdate)
     {
             uint32 const accumulatedDiff = t_diff;
+            ObjectGuid const slowObjectGuid = object->GetObjectGuid();
+            uint32 const slowObjectEntry = object->GetEntry();
+            uint32 const slowObjectType = uint32(object->GetTypeId());
             uint32 const objectUpdateStart = WorldTimer::getMSTime();
             object->Update(accumulatedDiff);
             uint32 const objectUpdateEnd = WorldTimer::getMSTime();
@@ -1431,8 +1434,8 @@ void Map::Update(const uint32& t_diff)
                 {
                     lastSlowObjectReport = objectUpdateEnd;
                     sLog.outPerformance("SLOW_NATIVE_OBJECT map=%u instance=%u guid=%s entry=%u type=%u update_ms=%u accumulated_diff=%u",
-                        GetId(), GetInstanceId(), object->GetObjectGuid().GetString().c_str(), object->GetEntry(),
-                        uint32(object->GetTypeId()), objectUpdateElapsed, accumulatedDiff);
+                        GetId(), GetInstanceId(), slowObjectGuid.GetString().c_str(), slowObjectEntry,
+                        slowObjectType, objectUpdateElapsed, accumulatedDiff);
                 }
             }
     }
