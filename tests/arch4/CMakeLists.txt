@@ -194,3 +194,10 @@ add_test(NAME corpse_team_condition COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE
 add_test(NAME native_spell_start_lifetime COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/spell_start_lifetime_regression.py ${CMAKE_SOURCE_DIR})
 
 add_test(NAME eventai_ranged_metadata COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/eventai_ranged_metadata_regression.py ${CMAKE_SOURCE_DIR})
+
+add_test(NAME portable_mailbox_faction COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/portable_mailbox_faction_regression.py ${CMAKE_SOURCE_DIR})
+add_test(NAME socket_header_rejection COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/socket_header_rejection_regression.py ${CMAKE_SOURCE_DIR})
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME urgent_attack COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/urgent_attack_regression.py)
+  add_test(NAME raid_entry_roster COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/recruitment_regression.py ${_arch4_playerbots_source})
+endif()

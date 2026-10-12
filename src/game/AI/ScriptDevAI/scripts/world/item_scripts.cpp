@@ -173,6 +173,9 @@ namespace
                 mailbox->SetRespawnTime(PORTABLE_MAILBOX_LIFETIME_SECONDS);
                 mailbox->SetSpellId(spell->m_spellInfo->Id);
                 mailbox->SetSpawnerGuid(caster->GetObjectGuid());
+                // The world template is Alliance-only. Set faction on this
+                // portable instance so the summoner's client permits clicking.
+                mailbox->SetUInt32Value(GAMEOBJECT_FACTION, caster->GetFaction());
                 map->Add(mailbox);
                 mailbox->AIM_Initialize();
             }
