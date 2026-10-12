@@ -181,6 +181,9 @@ void CreatureEventAI::InitAI()
         const CreatureEventAI_Event_Vec& creatureEvent = creatureEventsGuidItr->second;
         processMap(creatureEvent);
     }
+    // Definitions may have changed on respawn. Rebuild metadata only after
+    // the complete admitted list exists, so an old main cast cannot survive.
+    SpellListChanged();
 }
 
 bool CreatureEventAI::IsTimerExecutedEvent(EventAI_Type type) const
