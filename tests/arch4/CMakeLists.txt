@@ -192,3 +192,5 @@ add_test(NAME event_abort_lifetime COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_
 add_test(NAME corpse_team_condition COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/corpse_team_condition_regression.py ${CMAKE_SOURCE_DIR})
 
 add_test(NAME native_spell_start_lifetime COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/spell_start_lifetime_regression.py ${CMAKE_SOURCE_DIR})
+
+add_test(NAME eventai_ranged_metadata COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/eventai_ranged_metadata_regression.py ${CMAKE_SOURCE_DIR})

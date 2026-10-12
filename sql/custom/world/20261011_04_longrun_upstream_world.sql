@@ -15,3 +15,11 @@ INSERT INTO dbscripts_on_relay(`id`,`delay`,`priority`,`command`,`datalong`,`dat
 INSERT INTO dbscripts_on_relay(`id`,`delay`,`priority`,`command`,`datalong`,`datalong2`,`datalong3`,`buddy_entry`,`search_radius`,`data_flags`,`dataint`,`dataint2`,`dataint3`,`dataint4`,`datafloat`,`x`,`y`,`z`,`o`,`speed`,`condition_id`,`comments`) VALUES('1900014','0','1','35','5','0','0','4952','5','1','0','0','0','0','0','0','0','0','0','0','0','ManTech training - reset only this dummy, never neighboring guards');
 DELETE FROM dbscripts_on_relay WHERE id=14 AND delay=35000 AND command=45 AND datalong=1900014;
 INSERT INTO dbscripts_on_relay(`id`,`delay`,`priority`,`command`,`datalong`,`datalong2`,`datalong3`,`buddy_entry`,`search_radius`,`data_flags`,`dataint`,`dataint2`,`dataint3`,`dataint4`,`datafloat`,`x`,`y`,`z`,`o`,`speed`,`condition_id`,`comments`) VALUES('14','35000','1','45','1900014','0','0','0','0','4','0','0','0','0','0','0','0','0','0','0','0','ManTech training - optional paired dummy cleanup');
+
+-- Native map fallbacks apply only after existing area/zone links fail.
+-- Verified WorldSafeLocs.dbc IDs and existing native faction assignments.
+-- Do not fabricate zone0 records or send Outland ghosts to another continent.
+INSERT INTO game_graveyard_zone(id,ghost_loc,link_kind,faction)
+ SELECT 249,1,1,0 FROM game_graveyard_zone
+ WHERE id=249 AND ghost_loc=17 AND link_kind=0 AND faction=0
+ AND NOT EXISTS(SELECT 1 FROM game_graveyard_zone WHERE id=249 AND ghost_loc=1 AND link_kind=1);

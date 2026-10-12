@@ -99,6 +99,25 @@ CreatureEventAI::CreatureEventAI(Creature* creature) : CreatureAI(creature),
 
 }
 
+void CreatureEventAI::SpellListChanged()
+{
+    CreatureAI::SpellListChanged();
+    // Native spell-list changes reset the main-spell cache. Preserve legacy
+    // EventAI main/distance metadata from the admitted event definitions;
+    // rebuilding those definitions here would invalidate an active action.
+    for (auto const& holder : m_CreatureEventAIList)
+        for (uint32 index = 0; index < MAX_ACTIONS; ++index)
+        {
+            auto const& action = holder.event.action[index];
+            if (action.type != ACTION_T_CAST)
+                continue;
+            if (action.cast.castFlags & CAST_MAIN_SPELL)
+                AddMainSpell(action.cast.spellId);
+            if (action.cast.castFlags & CAST_DISTANCE_YOURSELF)
+                AddDistanceSpell(action.cast.spellId);
+        }
+}
+
 void CreatureEventAI::InitAI()
 {
     m_CreatureEventAIList.clear();
