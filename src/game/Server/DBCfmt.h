@@ -60,7 +60,7 @@ const char ItemRandomPropertiesfmt[] = "nxiiixxssssssssx";
 #else
 const char ItemRandomPropertiesfmt[] = "nxiiixxxxxxxxxxx";
 #endif
-const char ItemSetEntryfmt[] = "dssssssssxxxxxxxxxxxxxxxxxxiiiiiiiiiiiiiiiiii";
+const char ItemSetEntryfmt[] = "dssssssssxiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii";
 const char LiquidTypefmt[] = "niii";
 const char LockEntryfmt[] = "niiiiiiiiiiiiiiiiiiiiiiiixxxxxxxx";
 const char MailTemplateEntryfmt[] = "nxxxxxxxxx";
