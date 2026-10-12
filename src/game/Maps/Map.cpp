@@ -1418,7 +1418,24 @@ void Map::Update(const uint32& t_diff)
     performancePhaseStart = WorldTimer::getMSTime();
     count += objToUpdate.size();
     for (WorldObject* object : objToUpdate)
-        object->Update(t_diff);
+    {
+            uint32 const accumulatedDiff = t_diff;
+            uint32 const objectUpdateStart = WorldTimer::getMSTime();
+            object->Update(accumulatedDiff);
+            uint32 const objectUpdateEnd = WorldTimer::getMSTime();
+            uint32 const objectUpdateElapsed = WorldTimer::getMSTimeDiff(objectUpdateStart, objectUpdateEnd);
+            if (objectUpdateElapsed >= 100)
+            {
+                static thread_local uint32 lastSlowObjectReport = 0;
+                if (!lastSlowObjectReport || WorldTimer::getMSTimeDiff(lastSlowObjectReport, objectUpdateEnd) >= 60000)
+                {
+                    lastSlowObjectReport = objectUpdateEnd;
+                    sLog.outPerformance("SLOW_NATIVE_OBJECT map=%u instance=%u guid=%s entry=%u type=%u update_ms=%u accumulated_diff=%u",
+                        GetId(), GetInstanceId(), object->GetObjectGuid().GetString().c_str(), object->GetEntry(),
+                        uint32(object->GetTypeId()), objectUpdateElapsed, accumulatedDiff);
+                }
+            }
+    }
     performanceObjectElapsed = WorldTimer::getMSTimeDiff(performancePhaseStart, WorldTimer::getMSTime());
     s_watchdogPhase.store(9, std::memory_order_relaxed);
 

@@ -56,9 +56,6 @@ enum BattleGroundSounds
 
 enum BattleGroundQuests
 {
-    SPELL_WS_QUEST_REWARD           = 43483,
-    SPELL_AB_QUEST_REWARD           = 43484,
-    SPELL_AV_QUEST_REWARD           = 43475,
     SPELL_AV_QUEST_KILLED_BOSS      = 23658,
     SPELL_AB_QUEST_REWARD_4_BASES   = 24061,
     SPELL_AB_QUEST_REWARD_5_BASES   = 24064
@@ -406,7 +403,6 @@ class BattleGround
         void RewardItem(Player* /*player*/, uint32 /*itemId*/, uint32 /*count*/);
 
         // Function that rewards quest completion
-        void RewardQuestComplete(Player* /*player*/);
 
         // Function that rewards spell id
         void RewardSpellCast(Player* /*player*/, uint32 /*spellId*/) const;

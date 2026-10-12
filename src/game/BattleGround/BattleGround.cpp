@@ -828,7 +828,6 @@ void BattleGround::EndBattleGround(Team winner)
         if (team == winner)
         {
             RewardMark(plr, ITEM_WINNER_COUNT);
-            RewardQuestComplete(plr);
         }
         else
             RewardMark(plr, ITEM_LOSER_COUNT);
@@ -1012,26 +1011,7 @@ void BattleGround::SendRewardMarkByMail(Player* player, uint32 mark, uint32 coun
 
   @param    player
 */
-void BattleGround::RewardQuestComplete(Player* player)
-{
-    uint32 quest;
-    switch (GetTypeId())
-    {
-        case BATTLEGROUND_AV:
-            quest = SPELL_AV_QUEST_REWARD;
-            break;
-        case BATTLEGROUND_WS:
-            quest = SPELL_WS_QUEST_REWARD;
-            break;
-        case BATTLEGROUND_AB:
-            quest = SPELL_AB_QUEST_REWARD;
-            break;
-        default:
-            return;
-    }
 
-    RewardSpellCast(player, quest);
-}
 
 /**
   Method that blocks player movement - called at the end of battleground
