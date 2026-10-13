@@ -229,3 +229,8 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME upstream_sync COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/upstream_sync_regression.py)
   set_tests_properties(upstream_sync PROPERTIES TIMEOUT 180)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME lava_trash_control COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/lava_trash_control_regression.py)
+  set_tests_properties(lava_trash_control PROPERTIES TIMEOUT 180)
+endif()
