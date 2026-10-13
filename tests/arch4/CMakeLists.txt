@@ -234,3 +234,13 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME lava_trash_control COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/lava_trash_control_regression.py)
   set_tests_properties(lava_trash_control PROPERTIES TIMEOUT 180)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME mc_loose_trash COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/mc_loose_trash_regression.py)
+  set_tests_properties(mc_loose_trash PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME raid_regroup COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/raid_regroup_regression.py)
+  set_tests_properties(raid_regroup PROPERTIES TIMEOUT 180)
+endif()
