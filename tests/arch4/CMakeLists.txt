@@ -224,3 +224,8 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME mc_native_hazards COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/molten_core_position_regression.py)
   set_tests_properties(mc_position_handoff raid_maintenance_combat mc_native_hazards PROPERTIES TIMEOUT 180)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME upstream_sync COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/upstream_sync_regression.py)
+  set_tests_properties(upstream_sync PROPERTIES TIMEOUT 180)
+endif()
