@@ -67,7 +67,7 @@ set_source_files_properties("${_lifecycle_dir}/Engine.cpp" TARGET_DIRECTORY play
 file(READ "${playerbots_SOURCE_DIR}/playerbot/PlayerbotAI.cpp" _lifecycle_text)
 string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
 string(SHA256 _lifecycle_hash "${_lifecycle_text}")
-if(NOT _lifecycle_hash STREQUAL "d5e05e7d85398d6baef5bb268d82ea9061d1e48ae1609fd587c99994b7aafcdf")
+if(NOT _lifecycle_hash STREQUAL "a5af9c9151b39a2e86f5e552b87572b56e268255522be31e043c598c48ea485e")
   message(FATAL_ERROR "Review map-lifecycle fix: upstream PlayerbotAI.cpp changed")
 endif()
 mantech_lifecycle_replace(_lifecycle_text [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)
