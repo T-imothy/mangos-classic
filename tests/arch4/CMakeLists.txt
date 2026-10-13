@@ -209,3 +209,11 @@ endif()
 if(WIN32 AND MSVC)
   add_test(NAME transmog_equipment COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/transmog_equipment_regression.py ${CMAKE_SOURCE_DIR})
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME party_pull_wakeup COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/party_pull_wakeup_regression.py)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME generic_raid_flee COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/generic_raid_flee_regression.py)
+endif()
