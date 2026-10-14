@@ -253,7 +253,7 @@ void BattleGroundAB::ProcessNodeCapture(uint8 node, PvpTeamIndex teamIdx)
 
     if (newValue >= 5)
         CastSpellOnTeam(BG_AB_SPELL_QUEST_REWARD_5_BASES, team);
-    else if (newValue >= 4)
+    if (newValue >= 4)
         CastSpellOnTeam(BG_AB_SPELL_QUEST_REWARD_4_BASES, team);
 
     // setup graveyards
@@ -263,7 +263,9 @@ void BattleGroundAB::ProcessNodeCapture(uint8 node, PvpTeamIndex teamIdx)
 // Method that handles the banner click
 void BattleGroundAB::HandlePlayerClickedOnFlag(Player* player, GameObject* go)
 {
-    if (GetStatus() != STATUS_IN_PROGRESS)
+    if (GetStatus() != STATUS_IN_PROGRESS || !player || !go || !player->IsInWorld() ||
+        !player->IsAlive() || player->IsBeingTeleported() || player->GetBattleGround() != this ||
+        player->GetMap() != GetBgMap() || !go->IsInMap(player) || !GetPlayers().count(player->GetObjectGuid()))
         return;
 
     DEBUG_LOG("BattleGroundAB: Handle flag clicked by team %u for gameobject entry %u.", player->GetTeam(), go->GetEntry());
@@ -281,6 +283,11 @@ void BattleGroundAB::HandlePlayerClickedOnFlag(Player* player, GameObject* go)
         return;
 
     ABNodes node = ABNodes(event);
+
+    // Only the enemy/neutral banner is an admitted interaction.
+    if (m_nodeStatus[node] == ABNodeStatus(static_cast<uint16>(teamIndex) + BG_AB_NODE_TYPE_CONTESTED) ||
+        m_nodeStatus[node] == ABNodeStatus(static_cast<uint16>(teamIndex) + BG_AB_NODE_TYPE_OCCUPIED))
+        return;
 
     player->RemoveAurasWithInterruptFlags(AURA_INTERRUPT_FLAG_PVP_ACTIVE_CANCELS);
 
@@ -358,6 +365,10 @@ void BattleGroundAB::HandlePlayerClickedOnFlag(Player* player, GameObject* go)
 
     // update score
     UpdatePlayerScore(player, scoreType, 1);
+
+    // Personal assault quest markers, shared by every level-bracket variant.
+    const uint32 questCredit[BG_AB_MAX_NODES] = {15001, 15002, 15003, 15004, 15005};
+    player->KilledMonsterCredit(questCredit[node]);
 
     // update banner object
     DoUpdateBanner(node, m_nodeStatus[node], true);

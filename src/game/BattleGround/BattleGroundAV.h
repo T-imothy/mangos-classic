@@ -600,6 +600,7 @@ class BattleGroundAV : public BattleGround
         void HandlePlayerClickedOnFlag(Player* source, GameObject* target_obj) override;
         void HandleKillPlayer(Player* player, Player* killer) override;
         void HandleKillUnit(Creature* creature, Player* killer) override;
+        void HandleQuestComplete(uint32 questid, Player* player);
 
         // Conditions
         bool IsConditionFulfilled(Player const* source, uint32 conditionId, WorldObject const* conditionSource, uint32 conditionSourceType) override;
@@ -607,7 +608,6 @@ class BattleGroundAV : public BattleGround
     private:
         // Score and quest functions
         void UpdateScore(PvpTeamIndex teamIdx, int32 points);
-        void HandleQuestComplete(uint32 questid, Player* player);
         bool CanPlayerDoMineQuest(uint32 gameobjectEntry, Team team);
 
         // Battleground node functions

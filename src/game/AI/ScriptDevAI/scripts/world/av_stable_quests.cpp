@@ -26,6 +26,11 @@ namespace
         bool delivered = false;
         uint32 QuestId() const { return m_creature->GetEntry() == 10981 ? 7001 : 7027; }
         uint32 TameSpell() const { return m_creature->GetEntry() == 10981 ? 21794 : 21866; }
+        void MoveInLineOfSight(Unit* who) override
+        {
+            // A tamed delivery animal must not acquire enemies on the route.
+            if (owner.IsEmpty()) CreatureEventAI::MoveInLineOfSight(who);
+        }
         void JustRespawned() override
         {
             owner.Clear(); delivered = false; checkTimer = 0;
@@ -101,7 +106,7 @@ void AddSC_av_stable_quests()
 {
     Script* script = new Script;
     script->Name = "npc_av_stable_beast";
-    script->GetAI = [](Creature* creature) -> CreatureAI* { return new av_stable_beastAI(creature); };
+    script->GetAI = &GetNewAIInstance<av_stable_beastAI>;
     script->RegisterSelf();
     script = new Script;
     script->Name = "npc_av_stable_master";

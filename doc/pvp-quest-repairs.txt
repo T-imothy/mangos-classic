@@ -6,12 +6,18 @@ AV rewards notify the actual active battleground only after native quest
 reward state is committed; membership, faction and map must match.
 Armor scraps upgrade all seven graveyard defender locations.
 
+AB admitted flag interactions now award the five personal assault markers,
+shared by all level-bracket variants. Own banners, loading, wrong instance
+and nonmember interactions award nothing. Capturing five bases completes
+both the four-base and five-base objective spells.
+
 Empty Stables (7001/7027) uses the native tame item spells (21794/21866).
 The actual successful aura caster owns the follower, and only that player
 can deliver the appropriate living animal near the correct stable master.
 Quest cancellation, transfer or lost tame aura releases the animal. Delivery
 awards objective credit once and retains native quest reward/menu handling.
 Wild animals retain EventAI charge/rend behavior.
+Tamed followers do not acquire new enemies while being delivered.
 
 Install the matching ClassicDB Updates/ManTech/20261014_av_quest_trophies.sql
 with this binary, not against an older core. It adds two missing Wanted

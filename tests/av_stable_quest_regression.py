@@ -21,12 +21,13 @@ struct Player:Unit{bool loading=false;unsigned status=3,team=67,credits=0,menus=
  bool IsBeingTeleported(){return loading;}unsigned GetQuestStatus(unsigned){return status;}BattleGround*GetBattleGround(){return bg;}unsigned GetBGTeam(){return team;}
  void AreaExploredOrEventHappens(unsigned){++credits;status=1;}void PrepareQuestMenu(ObjectGuid){++menus;}unsigned GetGossipTextId(Creature*){return 0;}void SEND_GOSSIP_MENU(unsigned,ObjectGuid){} };
 struct Motion{unsigned type=0,moves=0;void MoveFollow(Player*,float,float){++moves;type=7;}unsigned GetCurrentMovementGeneratorType(){return type;}void MoveIdle(){type=0;}};
-struct SpellEntry{unsigned Id=21794;};struct CreatureAI{Creature*m_creature;explicit CreatureAI(Creature*c):m_creature(c){}virtual~CreatureAI(){}virtual void JustRespawned(){}virtual void SpellHit(Unit*,const SpellEntry*){}virtual void UpdateAI(unsigned){} };
+struct SpellEntry{unsigned Id=21794;};struct CreatureAI{Creature*m_creature;explicit CreatureAI(Creature*c):m_creature(c){}virtual~CreatureAI(){}virtual void JustRespawned(){}virtual void SpellHit(Unit*,const SpellEntry*){}virtual void UpdateAI(unsigned){}virtual void MoveInLineOfSight(Unit*){} };
 struct Creature:Unit{unsigned entry=10981,aura=21794,despawns=0;ObjectGuid auraOwner{1};bool charmed=false,combat=false,los=true;Motion motion;CreatureAI*brain=nullptr;
  unsigned GetEntry(){return entry;}bool HasCharmer(){return charmed;}void*GetSpellAuraHolder(unsigned id,ObjectGuid caster){return id==aura&&caster==auraOwner?this:nullptr;}
  void CombatStop(bool){combat=false;}void DeleteThreatList(){}void setFaction(unsigned f){faction=f;}Motion*GetMotionMaster(){return &motion;}bool IsInCombat(){return combat;}
  void RemoveAurasDueToSpell(unsigned){aura=0;}bool IsWithinLOSInMap(Creature*){return los;}void ForcedDespawn(unsigned){++despawns;}CreatureAI*AI(){return brain;}};
-struct CreatureEventAI:CreatureAI{unsigned legacyHits=0,legacyTicks=0,evades=0,respawns=0;using CreatureAI::CreatureAI;
+struct CreatureEventAI:CreatureAI{unsigned legacyHits=0,legacyTicks=0,evades=0,respawns=0,sight=0;using CreatureAI::CreatureAI;
+ void MoveInLineOfSight(Unit*)override{++sight;}
  void SpellHit(Unit*,const SpellEntry*)override{++legacyHits;}void UpdateAI(unsigned)override{++legacyTicks;}void EnterEvadeMode(){++evades;}
  void JustRespawned()override{++respawns;} };
 using CreatureList=std::list<Creature*>;Creature*nearby=nullptr;
@@ -38,6 +39,7 @@ int main(){Map map;BattleGround bg;bg.mapObject=&map;Player p,other;p.bg=other.b
  p.loading=true;ai.SpellHit(&p,&spell);assert(ai.owner.IsEmpty());p.loading=false;
  beast.aura=0;ai.SpellHit(&p,&spell);assert(ai.owner.IsEmpty());beast.aura=21794;
  ai.SpellHit(&p,&spell);assert(ai.owner==p.guid&&beast.motion.moves==1&&beast.faction==p.faction);
+ ai.MoveInLineOfSight(&other);assert(ai.sight==0); // follower does not acquire enemies
  ai.SpellHit(&p,&spell);assert(beast.motion.moves==1);ai.SpellHit(&other,&spell);assert(ai.owner==p.guid); // route stable and no theft
  assert(!ai.Deliver(&other,&stable));stable.entry=13617;assert(!ai.Deliver(&p,&stable));stable.entry=13616;
  beast.distance=10;assert(!ai.Deliver(&p,&stable));beast.distance=0;beast.los=false;assert(!ai.Deliver(&p,&stable));beast.los=true;
@@ -50,6 +52,7 @@ int main(){Map map;BattleGround bg;bg.mapObject=&map;Player p,other;p.bg=other.b
  ai.SpellHit(&p,&spell);p.status=0;ai.UpdateAI(500);assert(ai.owner.IsEmpty());p.status=3;beast.aura=21794;
  ai.SpellHit(&p,&spell);p.instance=8;ai.UpdateAI(500);assert(ai.owner.IsEmpty());p.instance=7;
  ai.UpdateAI(500);assert(ai.legacyTicks>0&&ai.legacyHits>0); // original EventAI behavior remains delegated
+ ai.MoveInLineOfSight(&other);assert(ai.sight==1);
  beast.entry=10990;beast.aura=21866;spell.Id=21866;p.team=469;stable.entry=13617;
  ai.SpellHit(&p,&spell);assert(ai.owner==p.guid&&ai.QuestId()==7027);assert(ai.Deliver(&p,&stable)&&p.credits==2);
 }
