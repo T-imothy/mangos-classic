@@ -256,3 +256,8 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME controlled_companion_scheduler COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/controlled_companion_scheduler_regression.py)
   set_tests_properties(shared_engagement_sequence controlled_companion_scheduler PROPERTIES TIMEOUT 180)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME mc_rotation_recovery COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/mc_rotation_recovery_regression.py)
+  set_tests_properties(mc_rotation_recovery PROPERTIES TIMEOUT 180)
+endif()
