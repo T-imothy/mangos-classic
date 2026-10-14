@@ -19,10 +19,16 @@ awards objective credit once and retains native quest reward/menu handling.
 Wild animals retain EventAI charge/rend behavior.
 Tamed followers do not acquire new enemies while being delivered.
 
+Fallen Sky Lords (7301/7302) now awards the existing six invisible commander
+discovery markers when an eligible player reaches native interaction range
+with line of sight in their actual active AV instance. Personal progress
+prevents repeated credit; faction, quest, membership and loading checks
+reject unrelated visits. No commander or optional army is spawned.
+
 Install the matching ClassicDB Updates/ManTech/20261014_av_quest_trophies.sql
 with this binary, not against an older core. It adds two missing Wanted
 bounty turn-ins, repairs ten corpse loot conditions and binds four stable
-NPC templates. Conditions 65001-65008 must be free or already identical to
+NPC templates and six existing discovery markers. Conditions 65001-65008 must be free or already identical to
 this migration. Loot references use 16-bit condition IDs. Existing unrelated
 conditions 293-300 and native quest rewards/level brackets are not rewritten.
 
