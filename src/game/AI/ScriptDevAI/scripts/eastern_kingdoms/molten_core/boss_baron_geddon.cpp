@@ -67,6 +67,7 @@ struct boss_baron_geddonAI : public CombatAI
 
     void JustDied(Unit* /*killer*/) override
     {
+        m_creature->SetActiveObjectState(false);
         if (m_instance)
             m_instance->SetData(TYPE_GEDDON, DONE);
     }

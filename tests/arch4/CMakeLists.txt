@@ -261,3 +261,68 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME mc_rotation_recovery COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/mc_rotation_recovery_regression.py)
   set_tests_properties(mc_rotation_recovery PROPERTIES TIMEOUT 180)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME movement_failure_readiness COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/movement_failure_readiness_regression.py)
+  set_tests_properties(movement_failure_readiness PROPERTIES TIMEOUT 120)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME alterac_engagement COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/alterac_engagement_regression.py)
+  set_tests_properties(alterac_engagement PROPERTIES TIMEOUT 120)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME encounter_arrival COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/encounter_arrival_regression.py)
+  set_tests_properties(encounter_arrival PROPERTIES TIMEOUT 120)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME debuff_admission COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/debuff_admission_regression.py)
+  set_tests_properties(debuff_admission PROPERTIES TIMEOUT 120)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME group_buff_coordination COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/group_buff_coordination_regression.py)
+  set_tests_properties(group_buff_coordination PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME firewalker_healing COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/firewalker_healing_regression.py)
+  set_tests_properties(firewalker_healing PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME forced_movement_recovery COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/forced_movement_recovery_regression.py)
+  set_tests_properties(forced_movement_recovery PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME healing_selection COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/healing_selection_regression.py)
+  set_tests_properties(healing_selection PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME full_health_wound COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/full_health_wound_regression.py)
+  set_tests_properties(full_health_wound PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME heal_interrupt_recheck COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/heal_interrupt_recheck_regression.py)
+  set_tests_properties(heal_interrupt_recheck PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME cross_healer COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/cross_healer_regression.py)
+  set_tests_properties(cross_healer PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME healing_window COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/healing_window_regression.py)
+  set_tests_properties(healing_window PROPERTIES TIMEOUT 180)
+endif()
+
+if(WIN32 AND MSVC)
+  add_test(NAME geddon_patrol COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/geddon_patrol_regression.py ${PROJECT_SOURCE_DIR})
+  set_tests_properties(geddon_patrol PROPERTIES TIMEOUT 120)
+endif()

@@ -110,11 +110,13 @@ class instance_molten_core : public ScriptedInstance
         void ExecuteChatCommand(ChatHandler* handler, char* args) override;
 
     protected:
+        void EnsureGeddonPatrol();
         void DoSpawnMajordomoIfCan(bool bByPlayerEnter);
         void SpawnMajordomo(Unit* summoner, bool initialSummon, uint8 summonPos);
 
         std::string m_strInstData;
         uint32 m_auiEncounter[MAX_ENCOUNTER];
+        bool m_geddonPatrolLoaded = false;
 };
 
 #endif

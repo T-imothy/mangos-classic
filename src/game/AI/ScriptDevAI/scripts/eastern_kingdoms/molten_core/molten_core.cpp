@@ -25,6 +25,7 @@ EndScriptData
 
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "molten_core.h"
+#include "MotionGenerators/WaypointManager.h"
 
 static SpawnLocation m_aBosspawnLocs[MAX_MAJORDOMO_ADDS] =
 {
@@ -46,6 +47,7 @@ instance_molten_core::instance_molten_core(Map* pMap) : ScriptedInstance(pMap)
 void instance_molten_core::Initialize()
 {
     memset(&m_auiEncounter, 0, sizeof(m_auiEncounter));
+    m_geddonPatrolLoaded = false;
 }
 
 bool instance_molten_core::IsEncounterInProgress() const
@@ -63,6 +65,25 @@ void instance_molten_core::OnPlayerEnter(Player* /*pPlayer*/)
 {
     // Summon Majordomo if can
     DoSpawnMajordomoIfCan(true);
+    EnsureGeddonPatrol();
+}
+
+void instance_molten_core::EnsureGeddonPatrol()
+{
+    if (m_geddonPatrolLoaded || GetData(TYPE_GEDDON) == DONE || GetData(TYPE_GEDDON) == SPECIAL) return;
+    m_geddonPatrolLoaded = true; // Once per loaded instance, including invalid/missing data.
+    const WaypointPath* path = sWaypointMgr.GetPathFromOrigin(NPC_GEDDON, 0, 0, PATH_FROM_ENTRY);
+    if (!path || path->size() < 2 || path->size() > 64)
+    {
+        script_error_log("MC Geddon patrol activation: missing or invalid native template path (instance %u)", instance->GetInstanceId());
+        return;
+    }
+    for (const auto& node : *path)
+        if (!std::isfinite(node.second.x) || !std::isfinite(node.second.y) || !std::isfinite(node.second.z)) return;
+    // A waypoint boss must start patrolling before players advance into its
+    // spawn grid. Load only this bounded native route; OnCreatureCreate makes
+    // its living boss active. Native movement, respawns and saves stay intact.
+    for (const auto& node : *path) instance->ForceLoadGrid(node.second.x, node.second.y);
 }
 
 void instance_molten_core::OnCreatureCreate(Creature* pCreature)
@@ -70,6 +91,10 @@ void instance_molten_core::OnCreatureCreate(Creature* pCreature)
     switch (pCreature->GetEntry())
     {
         // Bosses
+        case NPC_GEDDON:
+            if (pCreature->IsAlive()) pCreature->SetActiveObjectState(true);
+            m_npcEntryGuidStore[pCreature->GetEntry()] = pCreature->GetObjectGuid();
+            break;
         case NPC_GARR:
         case NPC_SULFURON:
         case NPC_MAJORDOMO:
