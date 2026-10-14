@@ -52,6 +52,7 @@
 #include "Weather/Weather.h"
 #include "BattleGround/BattleGround.h"
 #include "BattleGround/BattleGroundMgr.h"
+#include "BattleGround/BattleGroundAV.h"
 #include "OutdoorPvP/OutdoorPvP.h"
 #include "Chat/Chat.h"
 #include "Database/DatabaseImpl.h"
@@ -12827,6 +12828,15 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
     if (q_status.uState != QUEST_NEW)
         q_status.uState = QUEST_CHANGED;
 
+    // Notify the actual AV instance only after the native reward is committed.
+    // Completion packets, self/GM rewards and turn-ins outside AV are not
+    // contributions. Native quest eligibility/items still authorize the reward.
+    if (IsInWorld() && !IsBeingTeleported() && questGiver && questGiver->GetTypeId() == TYPEID_UNIT &&
+        static_cast<Creature*>(questGiver)->IsInMap(this))
+        if (BattleGround* bg = GetBattleGround())
+            if (bg->GetTypeId() == BATTLEGROUND_AV)
+                static_cast<BattleGroundAV*>(bg)->HandleQuestComplete(quest_id, this);
+
     if (announce)
         SendQuestReward(pQuest, xp);
 
@@ -13703,7 +13713,7 @@ void Player::KilledMonsterCredit(uint32 entry, ObjectGuid guid)
             continue;
         // just if !ingroup || !noraidgroup || raidgroup
         QuestStatusData& q_status = mQuestStatus[questid];
-        if (q_status.m_status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->IsRaidGroup() || qInfo->IsAllowedInRaid()))
+        if (q_status.m_status == QUEST_STATUS_INCOMPLETE && (!GetGroup() || !GetGroup()->IsRaidGroup() || qInfo->IsAllowedInRaid() || InBattleGround()))
         {
             if (qInfo->HasSpecialFlag(QUEST_SPECIAL_FLAG_KILL_OR_CAST))
             {
@@ -18703,7 +18713,7 @@ bool Player::HasQuestForGO(int32 GOId) const
             if (!qinfo)
                 continue;
 
-            if (GetGroup() && GetGroup()->IsRaidGroup() && !qinfo->IsAllowedInRaid())
+            if (GetGroup() && GetGroup()->IsRaidGroup() && !qinfo->IsAllowedInRaid() && !InBattleGround())
                 continue;
 
             for (int j = 0; j < QUEST_OBJECTIVES_COUNT; ++j)

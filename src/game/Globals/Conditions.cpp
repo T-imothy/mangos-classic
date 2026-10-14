@@ -258,6 +258,13 @@ bool inline ConditionEntry::Evaluate(WorldObject const* target, Map const* map, 
         }
         case CONDITION_RACE_CLASS:
         {
+            // PvP corpse loot uses the dead player's persisted race bytes.
+            // A corpse is a WorldObject, never a Unit. It has no class snapshot.
+            if (target->IsCorpse())
+            {
+                Corpse const* corpse = static_cast<Corpse const*>(target);
+                return !m_value2 && corpse->getRace() && (!m_value1 || (corpse->getRaceMask() & m_value1));
+            }
             Unit const* unit = static_cast<Unit const*>(target);
             return ((!m_value1 || (unit->getRaceMask() & m_value1)) && (!m_value2 || (unit->getClassMask() & m_value2)));
         }

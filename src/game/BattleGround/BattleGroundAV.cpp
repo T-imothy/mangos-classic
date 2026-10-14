@@ -159,12 +159,31 @@ void BattleGroundAV::HandleGameObjectCreate(GameObject* go)
 // Handle quest completion for player
 void BattleGroundAV::HandleQuestComplete(uint32 questid, Player* player)
 {
-    if (GetStatus() != STATUS_IN_PROGRESS)
+    if (GetStatus() != STATUS_IN_PROGRESS || !player || !player->IsInWorld() ||
+        player->IsBeingTeleported() || player->GetBattleGround() != this || player->GetMap() != GetBgMap())
         return;
 
-    DEBUG_LOG("BattleGroundAV: Handle quest id %u complete by team %u.", questid, player->GetTeam());
+    Team team;
+    switch (questid)
+    {
+        case BG_AV_QUEST_ARMOR_SCRAPS_A: case BG_AV_QUEST_ARMOR_SCRAPS_A_REPEAT:
+        case BG_AV_QUEST_SLIDORES_FLEET: case BG_AV_QUEST_VIPORES_FLEET: case BG_AV_QUEST_ICHMANS_FLEET:
+        case BG_AV_QUEST_CRYSTAL_CLUSTER: case BG_AV_QUEST_IVUS_FOREST_LORD:
+        case BG_AV_QUEST_IRONDEEP_SUPPLIES_A: case BG_AV_QUEST_COLDTOOTH_SUPPLIES_A:
+        case BG_AV_QUEST_RAM_RIDING: case BG_AV_QUEST_EMPTY_STABLES_A:
+            team = ALLIANCE; break;
+        case BG_AV_QUEST_ARMOR_SCRAPS_H: case BG_AV_QUEST_ARMOR_SCRAPS_H_REPEAT:
+        case BG_AV_QUEST_GUSES_FLEET: case BG_AV_QUEST_JEZTORS_FLEET: case BG_AV_QUEST_MULVERICKS_FLEET:
+        case BG_AV_QUEST_GALLON_OF_BLOOD: case BG_AV_QUEST_LOKHOLAR_ICE_LORD:
+        case BG_AV_QUEST_COLDTOOTH_SUPPLIES_H: case BG_AV_QUEST_IRONDEEP_SUPPLIES_H:
+        case BG_AV_QUEST_RAM_HIDE: case BG_AV_QUEST_EMPTY_STABLES_H:
+            team = HORDE; break;
+        default: return;
+    }
+    if (player->GetBGTeam() != team || !GetPlayers().count(player->GetObjectGuid())) return;
+    DEBUG_LOG("BattleGroundAV: Handle quest id %u complete by team %u.", questid, team);
 
-    PvpTeamIndex teamIdx = GetTeamIndexByTeamId(player->GetTeam());
+    PvpTeamIndex teamIdx = GetTeamIndexByTeamId(team);
 
     uint32 reputation = 0;                                  // reputation for the whole team (other reputation must be done in db)
     // TODO add events (including quest not available anymore, next quest availabe, go/npc de/spawning)
@@ -180,7 +199,7 @@ void BattleGroundAV::HandleQuestComplete(uint32 questid, Player* player)
             if (m_teamQuestStatus[teamIdx][0] == 500 || m_teamQuestStatus[teamIdx][0] == 1000 || m_teamQuestStatus[teamIdx][0] == 1500)  // 25,50,75 turn ins
             {
                 DEBUG_LOG("BattleGroundAV: Quest %i completed starting with unit upgrading..", questid);
-                for (uint8 i = BG_AV_NODES_FIRSTAID_STATION; i < BG_AV_NODES_FROSTWOLF_HUT; ++i)
+                for (uint8 i = BG_AV_NODES_FIRSTAID_STATION; i <= BG_AV_NODES_FROSTWOLF_HUT; ++i)
                     if (m_nodes[i].owner == teamIdx && m_nodes[i].state == POINT_CONTROLLED)
                         PopulateNode(AVNodeIds(i));
             }
@@ -203,7 +222,7 @@ void BattleGroundAV::HandleQuestComplete(uint32 questid, Player* player)
         case BG_AV_QUEST_MULVERICKS_FLEET:
             m_teamQuestStatus[teamIdx][3]++;
             reputation = 5;
-            if (m_teamQuestStatus[teamIdx][1] == 30)
+            if (m_teamQuestStatus[teamIdx][3] == 30)
                 DEBUG_LOG("BattleGroundAV: Quest %i completed (need to implement some events here", questid);
             break;
         case BG_AV_QUEST_CRYSTAL_CLUSTER:
@@ -235,7 +254,7 @@ void BattleGroundAV::HandleQuestComplete(uint32 questid, Player* player)
             if (m_teamQuestStatus[teamIdx][6] == 7)
             {
                 DEBUG_LOG("BattleGroundAV: Quest %i completed (need to implement some events here", questid);
-                if (m_teamQuestStatus[teamIdx][5] == 20)
+                if (m_teamQuestStatus[teamIdx][5] == 28)
                     DEBUG_LOG("BattleGroundAV: Quest %i completed (need to implement some events here - ground assault ready", questid);
             }
             break;
@@ -267,7 +286,7 @@ void BattleGroundAV::HandleQuestComplete(uint32 questid, Player* player)
     }
 
     if (reputation)
-        RewardReputationToTeam((player->GetTeam() == ALLIANCE) ? BG_AV_FACTION_ID_STORMPIKE : BG_AV_FACTION_ID_FROSTWOLF, reputation, player->GetTeam());
+        RewardReputationToTeam((team == ALLIANCE) ? BG_AV_FACTION_ID_STORMPIKE : BG_AV_FACTION_ID_FROSTWOLF, reputation, team);
 }
 
 // Method that updates team score

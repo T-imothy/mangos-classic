@@ -1,0 +1,34 @@
+Classic PvP quest repairs, 2026-10-14
+
+Quest kill and object objectives now admit battleground raid membership, as
+quest item objectives already do. Outdoor raid restrictions remain native.
+AV rewards notify the actual active battleground only after native quest
+reward state is committed; membership, faction and map must match.
+Armor scraps upgrade all seven graveyard defender locations.
+
+Empty Stables (7001/7027) uses the native tame item spells (21794/21866).
+The actual successful aura caster owns the follower, and only that player
+can deliver the appropriate living animal near the correct stable master.
+Quest cancellation, transfer or lost tame aura releases the animal. Delivery
+awards objective credit once and retains native quest reward/menu handling.
+Wild animals retain EventAI charge/rend behavior.
+
+Install the matching ClassicDB Updates/ManTech/20261014_av_quest_trophies.sql
+with this binary, not against an older core. It adds two missing Wanted
+bounty turn-ins, repairs ten corpse loot conditions and binds four stable
+NPC templates. Conditions 65001-65008 must be free or already identical to
+this migration. Loot references use 16-bit condition IDs. Existing unrelated
+conditions 293-300 and native quest rewards/level brackets are not rewritten.
+
+The race condition evaluator now handles Corpse explicitly, preserving
+Unit race/class behavior and rejecting corpse class predicates.
+
+Verification executes native function bodies with narrow fixtures, followed
+by a full native build/CTest. The data migration is separately exercised
+twice on connection-local temporary clones. These checks are not live AV
+playthroughs or proof that every optional battleground event is implemented.
+
+Known existing limits: air, rider and ground assaults plus Ivus/Lokholar
+activation still have native TODO event handlers. Contribution counts and
+quest rewards now work; the missing armies/rituals are not claimed repaired.
+Retired/internal quest rows without starters are not enabled as content.
