@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "d741391c71ee3faa320a05fac3f124493e08baea" # ManTech baseline: coordinated MC packs, Garr control and boss positioning
+        GIT_TAG "29dd11f48a840774e329127e5be8fb855b558c3d" # ManTech baseline: coordinated MC packs, Garr control and boss positioning
   )
 
   FetchContent_GetProperties(PlayerBots)
