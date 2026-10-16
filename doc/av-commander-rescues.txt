@@ -1,0 +1,51 @@
+Classic AV commander rescue follow-up, 2026-10-15
+
+Reported: Capture a Mine, Towers and Bunkers, Fallen Sky Lords and Wanted:
+ORCS! fail; commander return dialogue does nothing. Live comparison showed
+the deployed binary is core 20953a66, preceding the prepared quest release.
+Neither bounty ender link, private corpse condition nor marker binding from
+the 2026-10-14 migration was present in the live world database.
+
+The new commander script is bound only to six AV NPC templates. It retains
+their EventAI combat kit. Friendly active AV members may start a return
+once; combat, stale clicks, missing routes, other teams, loading and other
+instances cannot start it. The quest itself is not required to rescue an
+NPC. Personal Fallen Sky Lords discovery is checked separately against the
+active quest, marker and actual nearby commander, avoiding misplaced or
+elevated invisible-marker positions. A returned NPC at base grants no
+discovery credit. Existing invisible discovery markers remain supported.
+
+Each NPC walks its native waypoint route to the home faction base. Native
+navigation handles movement; no teleport, invulnerability or forced quest
+completion is added. Movement callbacks retain the last safe checkpoint.
+After combat evade the NPC resumes at the next point, and final arrival
+settles it at base with its quest menu. Movement changes are deferred out
+of MovementInform. Death restores the prisoner respawn coordinate before
+native respawn. Ichman's original invisibility cast is suppressed only
+after rescue; other existing EventAI actions remain unchanged.
+
+Route source: official VMaNGOS world snapshot db-4641790.zip
+https://github.com/vmangos/core/releases/download/db_latest/db-4641790.zip
+SHA256: 9e178f1d70363e92a7b8c259000102dc9739333d79ca00c99ea32dd1fb43e904
+Rescue endpoint semantics: vmangos/core commit
+53d24d5c748bef5e0cde7b1155bcb3d979af614c,
+src/scripts/battlegrounds/battleground_alterac.cpp, WaypointReached.
+The snapshot's routes are sorted, converted from zero-based points, and
+clipped at that donor's rescue arrival: 74/84/97/92/66/76 respectively for
+Guse/Jeztor/Mulverick/Ichman/Slidore/Vipore. This yields 495 nodes in six
+private paths 613179/613180/613181/613437/613438/613439. Existing scripts
+and post-rescue army/air-strike continuation are not imported.
+
+Apply the previous 20261014_av_quest_trophies.sql and the matching
+20261015_av_wing_commander_rescues.sql with this core. Before migration,
+check private path/condition collisions, snapshot affected rows and retain
+the exact binary/symbol rollback pair. The new paths use no movement SQL
+scripts and a terminal wait while the AI settles the NPC; they never loop
+back to the prisoner spawn after arrival.
+
+Verification: native-body commander lifecycle fixtures, existing PvP and
+recruitment/MC regression suites, full native compilation, and both SQL
+patches executed twice only on six connection-local cloned tables. Actual
+in-game rescue and route navigation remain acceptance checks after release.
+Optional air/ground/rider assaults and Ivus/Lokholar activation remain
+separate unfinished native features and are not claimed fixed here.

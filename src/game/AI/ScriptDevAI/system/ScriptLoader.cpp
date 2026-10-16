@@ -26,6 +26,7 @@ extern void AddSC_npc_professions();
 extern void AddSC_npcs_special();
 extern void AddSC_av_stable_quests();
 extern void AddSC_av_quest_objectives();
+extern void AddSC_av_wing_commanders();
 extern void AddSC_spell_scripts();
 extern void AddSC_world_map_scripts();
 extern void AddSC_war_effort();
@@ -233,6 +234,7 @@ void AddScripts()
     AddSC_npcs_special();
     AddSC_av_stable_quests();
     AddSC_av_quest_objectives();
+    AddSC_av_wing_commanders();
     AddSC_spell_scripts();
     AddSC_world_map_scripts();
     AddSC_war_effort();
