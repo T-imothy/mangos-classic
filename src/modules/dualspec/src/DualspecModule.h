@@ -38,7 +38,7 @@ namespace cmangos_module
         bool OnGossipSelect(Player* player, Item* item, uint32 sender, uint32 action, const std::string& code, uint32 gossipListId) override;
         void OnLearnTalent(Player* player, uint32 spellId) override;
         void OnResetTalents(Player* player, uint32 cost) override;
-        void OnPreLoadFromDB(uint32 playerId) override;
+        void OnPreLoadFromDB(Player* player) override;
         void OnLoadFromDB(Player* player) override;
         void OnSaveToDB(Player* player) override;
         void OnDeleteFromDB(uint32 playerId) override;
@@ -48,6 +48,7 @@ namespace cmangos_module
         bool OnSaveActionButtons(Player* player, ActionButtonList& actionButtons) override;
 
     private:
+        bool EnsurePlayerData(Player* player);
         void LoadPlayerSpec(uint32 playerId);
         uint8 GetPlayerActiveSpec(uint32 playerId) const;
         void SetPlayerActiveSpec(Player* player, uint8 spec);

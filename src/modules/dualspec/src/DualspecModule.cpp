@@ -46,10 +46,8 @@ namespace cmangos_module
                 if (item->GetEntry() != DUALSPEC_ITEM_ENTRY)
                     return false;
 
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 player->GetPlayerMenu()->ClearMenus();
@@ -143,10 +141,8 @@ namespace cmangos_module
                 if (creature->GetEntry() != DUALSPEC_NPC_ENTRY)
                     return false;
 
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 player->GetPlayerMenu()->ClearMenus();
@@ -193,10 +189,8 @@ namespace cmangos_module
                 if (creature->GetEntry() != DUALSPEC_NPC_ENTRY)
                     return false;
 
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 player->GetPlayerMenu()->ClearMenus();
@@ -328,10 +322,8 @@ namespace cmangos_module
                 if (item->GetEntry() != DUALSPEC_ITEM_ENTRY)
                     return false;
 
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 player->GetPlayerMenu()->ClearMenus();
@@ -411,10 +403,8 @@ namespace cmangos_module
         {
             if (player)
             {
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return;
-#endif
 
                 SpellEntry const* spellInfo = sSpellTemplate.LookupEntry<SpellEntry>(spellId);
                 if (!spellInfo)
@@ -478,41 +468,28 @@ namespace cmangos_module
         }
     }
 
-    void DualspecModule::OnPreLoadFromDB(uint32 playerId)
+    void DualspecModule::OnPreLoadFromDB(Player* player)
     {
-        if (GetConfig()->enabled)
-        {
+        if (!GetConfig()->enabled || !player)
+            return;
 #ifdef ENABLE_PLAYERBOTS
-            if (sRandomPlayerbotMgr.IsFreeBot(playerId))
-                return;
+        if (!player->isRealPlayer())
+            return;
 #endif
-
-            LoadPlayerSpec(playerId);
-        }
+        LoadPlayerSpec(player->GetObjectGuid().GetCounter());
     }
 
     void DualspecModule::OnLoadFromDB(Player* player)
     {
-        if (GetConfig()->enabled)
-        {
-#ifdef ENABLE_PLAYERBOTS
-            if (!player->isRealPlayer())
-                return;
-#endif
-
-            LoadPlayerTalents(player);
-            LoadPlayerSpecNames(player);
-        }
+        EnsurePlayerData(player);
     }
 
     void DualspecModule::OnSaveToDB(Player* player)
     {
         if (GetConfig()->enabled)
         {
-#ifdef ENABLE_PLAYERBOTS
-            if (!player->isRealPlayer())
+            if (!EnsurePlayerData(player))
                 return;
-#endif
 
             const uint32 playerId = player->GetObjectGuid().GetCounter();
             SavePlayerTalents(playerId);
@@ -539,20 +516,14 @@ namespace cmangos_module
 
     void DualspecModule::OnLogOut(Player* player)
     {
-        if (GetConfig()->enabled)
+        // The socket can already be detached and a former human may now be a
+        // bot. Destruction must release any data this object loaded either way.
+        if (player)
         {
-            if (player)
-            {
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
-                    return;
-#endif
-
-                const uint32 playerId = player->GetObjectGuid().GetCounter();
-                playersTalents.erase(playerId);
-                playersStatus.erase(playerId);
-                playersSpecNames.erase(playerId);
-            }
+            const uint32 playerId = player->GetObjectGuid().GetCounter();
+            playersTalents.erase(playerId);
+            playersStatus.erase(playerId);
+            playersSpecNames.erase(playerId);
         }
     }
 
@@ -582,10 +553,8 @@ namespace cmangos_module
         {
             if (player)
             {
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 const uint8 activeSpec = GetPlayerActiveSpec(playerId);
@@ -636,10 +605,8 @@ namespace cmangos_module
         {
             if (player)
             {
-#ifdef ENABLE_PLAYERBOTS
-                if (!player->isRealPlayer())
+                if (!EnsurePlayerData(player))
                     return false;
-#endif
 
                 const uint32 playerId = player->GetObjectGuid().GetCounter();
                 const uint8 activeSpec = GetPlayerActiveSpec(playerId);
@@ -708,10 +675,8 @@ namespace cmangos_module
         // statements participate in Player::SaveToDB's existing transaction.
         if (GetConfig()->enabled && player)
         {
-#ifdef ENABLE_PLAYERBOTS
-            if (!player->isRealPlayer())
+            if (!EnsurePlayerData(player))
                 return false;
-#endif
             const uint32 playerId = player->GetObjectGuid().GetCounter();
             CharacterDatabase.PExecute("DELETE FROM `character_action` WHERE `guid` = '%u';", playerId);
             CharacterDatabase.PExecute("INSERT INTO `character_action` (`guid`, `button`, `action`, `type`) SELECT `guid`, `button`, `action`, `type` FROM `custom_dualspec_action` WHERE `guid` = '%u' AND `spec` = '%u';",
@@ -719,6 +684,27 @@ namespace cmangos_module
             return true;
         }
         return false;
+    }
+
+    bool DualspecModule::EnsurePlayerData(Player* player)
+    {
+        if (!GetConfig()->enabled || !player)
+            return false;
+#ifdef ENABLE_PLAYERBOTS
+        if (!player->isRealPlayer())
+            return false;
+#endif
+        // Bot-to-human takeover uses the reconnect path, which does not repeat
+        // OnPreLoadFromDB/OnLoadFromDB. Read the saved active spec rather than
+        // guessing spec zero or discarding existing dirty module data.
+        const uint32 playerId = player->GetObjectGuid().GetCounter();
+        if (playersStatus.find(playerId) == playersStatus.end())
+            LoadPlayerSpec(playerId);
+        if (playersTalents.find(playerId) == playersTalents.end())
+            LoadPlayerTalents(player);
+        if (playersSpecNames.find(playerId) == playersSpecNames.end())
+            LoadPlayerSpecNames(player);
+        return true;
     }
 
     void DualspecModule::LoadPlayerSpec(uint32 playerId)

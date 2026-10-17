@@ -31,7 +31,7 @@ struct Player {bool human=true;bool isRealPlayer(){return human;}Guid GetObjectG
 struct Database {std::vector<std::string> sql;template<class...T>void PExecute(const char* format,T...args){
  char buffer[2048];std::snprintf(buffer,sizeof(buffer),format,args...);sql.push_back(buffer);}} CharacterDatabase;
 struct Config {bool enabled=true;};
-struct DualspecModule {Config config;Config* GetConfig(){return &config;}uint8 GetPlayerActiveSpec(unsigned){return 1;}
+struct DualspecModule {Config config;Config* GetConfig(){return &config;}uint8 GetPlayerActiveSpec(unsigned){return 1;}bool EnsurePlayerData(Player* p){return p && config.enabled && p->isRealPlayer();}
  bool OnSaveActionButtons(Player*,ActionButtonList&);};
 __METHOD__
 int main(){
