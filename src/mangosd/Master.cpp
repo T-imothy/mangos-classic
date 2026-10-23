@@ -26,6 +26,7 @@
 #include "WorldRunnable.h"
 #include "World/World.h"
 #include "Log/Log.h"
+#include "Util/LifecyclePhase.h"
 #include "Util/Timer.h"
 #include "SystemConfig.h"
 #include "CliRunnable.h"
@@ -357,7 +358,7 @@ int Master::Run()
     CharacterDatabase.HaltDelayThread();
     WorldDatabase.HaltDelayThread();
     LoginDatabase.HaltDelayThread();
-    LogsDatabase.HaltDelayThread();
+    { LifecyclePhase phase("shutdown.db_LogsDatabase"); LogsDatabase.HaltDelayThread(); }
 
     sLog.outString("Halting process...");
 
@@ -537,9 +538,9 @@ bool Master::_StartDB()
         sLog.outError("Realm ID not defined in configuration file");
 
         ///- Wait for already started DB delay threads to end
-        WorldDatabase.HaltDelayThread();
-        CharacterDatabase.HaltDelayThread();
-        LoginDatabase.HaltDelayThread();
+        { LifecyclePhase phase("shutdown.db_WorldDatabase"); WorldDatabase.HaltDelayThread(); }
+        { LifecyclePhase phase("shutdown.db_CharacterDatabase"); CharacterDatabase.HaltDelayThread(); }
+        { LifecyclePhase phase("shutdown.db_LoginDatabase"); LoginDatabase.HaltDelayThread(); }
         return false;
     }
 

@@ -370,3 +370,8 @@ if(WIN32 AND MSVC AND BUILD_MODULE_DUALSPEC)
   add_test(NAME dualspec_action_mirror COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/test_dualspec_action_mirror.py)
   set_tests_properties(dualspec_lifecycle dualspec_action_mirror PROPERTIES TIMEOUT 120)
 endif()
+
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME logout_save COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/logout_save_regression.py ${_arch4_playerbots_source})
+  set_tests_properties(logout_save PROPERTIES TIMEOUT 120)
+endif()

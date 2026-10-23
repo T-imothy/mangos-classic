@@ -220,6 +220,7 @@ class WorldSession
         bool PlayerLoading() const { return m_playerLoading; }
         bool PlayerLogout() const { return m_playerLogout; }
         bool PlayerLogoutWithSave() const { return m_playerLogout && m_playerSave; }
+        bool ShouldSaveOnLogout() const { return m_playerSave; }
 
         void SizeError(WorldPacket const& packet, uint32 size) const;
 
