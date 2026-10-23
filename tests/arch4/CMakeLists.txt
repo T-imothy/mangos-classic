@@ -200,6 +200,7 @@ add_test(NAME socket_header_rejection COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOUR
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME urgent_attack COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/urgent_attack_regression.py)
   add_test(NAME raid_entry_roster COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/recruitment_regression.py ${_arch4_playerbots_source})
+  add_test(NAME rpg_taxi_failure COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/rpg_taxi_failure_regression.py)
 endif()
 
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
