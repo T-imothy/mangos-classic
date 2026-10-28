@@ -460,14 +460,17 @@ struct CheckGothikSide : public SpellScript
                         if (Player* player = playerInList.getSource())
                         {
                             if (!player->IsAlive())
-                                return;
+                                continue;
 
-                            if (spell->m_spellInfo->Id == SPELL_CHECK_UNRELENTING_SIDE && instance->IsInRightSideGothikArea(player))
+                            const bool rightSide = instance->IsInRightSideGothikArea(player);
+                            if ((spell->m_spellInfo->Id == SPELL_CHECK_UNRELENTING_SIDE && rightSide) ||
+                                (spell->m_spellInfo->Id == SPELL_CHECK_SPECTRAL_SIDE && !rightSide))
+                            {
                                 caster->AI()->AttackClosestEnemy();
-                            else if (spell->m_spellInfo->Id == SPELL_CHECK_SPECTRAL_SIDE && !instance->IsInRightSideGothikArea(player))
-                                caster->AI()->AttackClosestEnemy();
-                            else
                                 return;
+                            }
+                            // A dead/opposite-side player is not evidence that
+                            // this entire side has no eligible players.
                         }
                     }
                 }

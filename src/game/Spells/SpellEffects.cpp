@@ -5448,7 +5448,7 @@ void Spell::EffectSummonDemon(SpellEffectIndex eff_idx)
     for (int i = 0; i < m_currentBasePoints[eff_idx]; i++)
     {
         Creature* summon = WorldObject::SummonCreature(TempSpawnSettings(m_caster, m_spellInfo->EffectMiscValue[eff_idx], x, y, z, m_caster->GetOrientation(), TEMPSPAWN_TIMED_OR_DEAD_DESPAWN, 3600000, false,
-            IsSpellSetRun(m_spellInfo), 0, 0, false, false, m_spellInfo->Id), m_caster->GetMap());
+            IsSpellSetRun(m_spellInfo), 0, 0, 0, false, false, m_spellInfo->Id), m_caster->GetMap());
 
         if (!summon)
             return;

@@ -28,6 +28,7 @@
 
 #ifdef ENABLE_PLAYERBOTS
 #include "playerbot/strategy/actions/EncounterSpellPolicy.h"
+#include "playerbot/strategy/actions/RaidPetAdmission.h"
 
 namespace
 {
@@ -115,6 +116,7 @@ void PetAI::MoveInLineOfSight(Unit* who)
 void PetAI::AttackStart(Unit* who)
 {
 #ifdef ENABLE_PLAYERBOTS
+    if (!ai::RaidPetOffenseAllowed(m_unit, nullptr, who)) return;
     if (ai::HasMajordomoDamageShield(EncounterBotOwner(m_unit),who)) return;
 #endif
     if (m_pet && m_pet->HasActionsDisabled())
@@ -190,6 +192,11 @@ void PetAI::UpdateAI(const uint32 diff)
     CharmInfo* charmInfo = m_unit->GetCharmInfo();
     MANGOS_ASSERT(charmInfo);
 
+#ifdef ENABLE_PLAYERBOTS
+    ai::StopUnsafeRaidPetCasts(m_unit);
+    if (victim && !ai::RaidPetOffenseAllowed(m_unit, nullptr, victim))
+        victim = nullptr; // Existing native stop/chase cleanup below; reaction state is unchanged.
+#endif
     // Do not continue attacking if victim is moving home
     if (victim && victim->GetCombatManager().IsEvadingHome())
         victim = nullptr;
@@ -476,6 +483,9 @@ bool PetAI::CanAutoCastAreaAura(SpellEntry const* spellInfo, Unit* target) const
 
 bool PetAI::CanAutoCast(SpellEntry const* spellInfo, Unit* target) const
 {
+#ifdef ENABLE_PLAYERBOTS
+    if (!ai::RaidPetOffenseAllowed(m_unit, spellInfo, target)) return false;
+#endif
     if (!CanAutoCastAreaAura(spellInfo, target))
         return false;
 
@@ -590,6 +600,7 @@ bool PetAI::Cast(std::tuple<SpellEntry const*, Unit*, bool> spellWithTarget)
     SpellEntry const* spellInfo; Unit* target; bool opener;
     std::tie(spellInfo, target, opener) = spellWithTarget;
 #ifdef ENABLE_PLAYERBOTS
+    if (!ai::RaidPetOffenseAllowed(m_unit, spellInfo, target)) return false;
     if (ai::ShouldAvoidEncounterOffense(EncounterBotOwner(m_unit),m_unit,spellInfo,target)) return false;
 #endif
 

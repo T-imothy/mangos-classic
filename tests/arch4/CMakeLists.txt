@@ -385,3 +385,53 @@ if(WIN32 AND MSVC)
   add_test(NAME delayed_script_guard COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/delayed_script_guard_regression.py ${PROJECT_SOURCE_DIR})
   set_tests_properties(delayed_script_guard PROPERTIES TIMEOUT 120)
 endif()
+
+# Cross-era raid review regression coverage (2026-10-28).
+# Each fixture checks its applicable native era variants internally.
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  foreach(_raid_regression IN ITEMS
+    raid_activation
+    onyxia_native
+    naxx_control_selection
+    naxx_control_commands
+    razuvious_pull
+    naxxramas_perception
+    naxxramas_roles
+    naxxramas_preparation
+    naxxramas_gothik_native
+    wrath_horsemen
+    zg_marli_phase
+    boss_cast_position
+    boss_cover
+    dungeon_add_priority
+    encounter_adds
+    encounter_dispel
+    hakkar_poison
+    heigan_dance
+    native_actor_hazards
+    gluth_priority
+    bot_command_status
+    pull_approach
+    naxxramas_burst
+    naxxramas_lifecycle
+    encounter_runtime
+    encounter_destination_path
+    encounter_movement_arbitration
+    encounter_safe_hold
+    encounter_planner_cache
+    thekal_balance
+    arlokk_vanish_binding
+    classic_raid_pause
+    gluth_roles
+    zg_actor_hazards
+    zg_native_summon_identity
+  )
+    add_test(NAME ${_raid_regression} COMMAND ${Python3_EXECUTABLE}
+      ${_arch4_playerbots_source}/tests/${_raid_regression}_regression.py)
+    set_tests_properties(${_raid_regression} PROPERTIES TIMEOUT 180)
+  endforeach()
+  add_test(NAME raid_pet_admission COMMAND ${Python3_EXECUTABLE}
+    ${_arch4_playerbots_source}/tests/raid_pet_admission_regression.py
+    --core ${PROJECT_SOURCE_DIR} --era ZERO)
+  set_tests_properties(raid_pet_admission PROPERTIES TIMEOUT 180)
+endif()
