@@ -738,6 +738,7 @@ struct go_ai_suppression : public GameObjectAI
     go_ai_suppression(GameObject* go) : GameObjectAI(go), m_uiFumeTimer(urand(0, 5 * IN_MILLISECONDS)) {}
 
     uint32 m_uiFumeTimer;
+    bool m_disabledAfterBoss = false;
 
     void OnLootStateChange(Unit* /*user*/) override
     {
@@ -760,6 +761,20 @@ struct go_ai_suppression : public GameObjectAI
     // but we need core support for GO casting for that
     void UpdateAI(const uint32 uiDiff) override
     {
+        // OnGameObjectCreate only covers devices loaded after the kill. Stop
+        // already-loaded devices too, including ones waiting on a rearm timer.
+        ScriptedInstance* instance = static_cast<ScriptedInstance*>(m_go->GetMap()->GetInstanceData());
+        if (instance && instance->GetData(TYPE_LASHLAYER) == DONE)
+        {
+            if (!m_disabledAfterBoss)
+            {
+                m_disabledAfterBoss = true;
+                m_go->SetRespawnTime(7 * 24 * HOUR);
+                m_go->SetLootState(GO_JUST_DEACTIVATED);
+            }
+            return;
+        }
+
         if (m_uiFumeTimer)
         {
             if (m_uiFumeTimer <= uiDiff)
