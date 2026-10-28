@@ -831,7 +831,7 @@ void MapPersistentStateManager::PackInstances() const
     BarGoLink bar(InstanceSet.size() + 1);
     bar.step();
 
-    uint32 InstanceNumber = 2; //Reserve instance id 1 for ebonhold GetTeam() == ALLIANCE.
+    uint32 InstanceNumber = 1; // No Ebon Hold reservation in this expansion.
     // we do assume std::set is sorted properly on integer value
     for (uint32 i : InstanceSet)
     {

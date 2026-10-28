@@ -1784,6 +1784,14 @@ bool ScriptAction::HandleScriptStep()
         // Give some debug log output for easier use
         DETAIL_FILTER_LOG(LOG_FILTER_DB_SCRIPT, "DB-SCRIPTS: Process table `%s` id %u, command %u for source %s (%sin world), target %s (%sin world)", m_table, m_script->id, m_script->command, m_sourceGuid.GetString().c_str(), source ? "" : "not ", m_targetGuid.GetString().c_str(), target ? "" : "not ");
 
+        // A termination guard must still run when its scene participants have
+        // despawned. Otherwise the empty source/target product below never
+        // executes command 31, and later steps keep running on vanished NPCs.
+        // Explicit GUID buddies can resolve independently and must be kept.
+        if (m_script->command == SCRIPT_COMMAND_TERMINATE_SCRIPT && !source && !target &&
+            !(m_script->data_flags & SCRIPT_FLAG_BUDDY_BY_GUID))
+            return true;
+
         // Get expected source and target (if defined with buddy)
         if (source && source->isType(TYPEMASK_WORLDOBJECT))
             sources.push_back(static_cast<WorldObject*>(source));

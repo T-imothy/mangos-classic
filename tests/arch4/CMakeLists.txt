@@ -375,3 +375,13 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME logout_save COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/logout_save_regression.py ${_arch4_playerbots_source})
   set_tests_properties(logout_save PROPERTIES TIMEOUT 120)
 endif()
+
+if(WIN32 AND MSVC)
+  add_test(NAME instance_pack_integrity COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/instance_pack_regression.py ${PROJECT_SOURCE_DIR})
+  set_tests_properties(instance_pack_integrity PROPERTIES TIMEOUT 120)
+endif()
+
+if(WIN32 AND MSVC)
+  add_test(NAME delayed_script_guard COMMAND ${Python3_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tests/delayed_script_guard_regression.py ${PROJECT_SOURCE_DIR})
+  set_tests_properties(delayed_script_guard PROPERTIES TIMEOUT 120)
+endif()

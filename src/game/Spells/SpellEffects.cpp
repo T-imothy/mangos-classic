@@ -2150,6 +2150,7 @@ void Spell::SendLoot(ObjectGuid guid, LootType loottype, LockType lockType)
                         {
                             case LOCKTYPE_NONE:
                             case LOCKTYPE_DISARM_TRAP:
+                            case LOCKTYPE_OPEN_TINKERING: // Opening (6477), e.g. Twilight Tablet Fragment.
                             case LOCKTYPE_OPEN_ATTACKING:
                                 gameObjTarget->SetLootState(GO_ACTIVATED);
                                 return;
