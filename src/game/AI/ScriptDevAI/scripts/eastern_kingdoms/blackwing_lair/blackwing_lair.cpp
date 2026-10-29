@@ -32,6 +32,8 @@ instance_blackwing_lair::instance_blackwing_lair(Map* pMap) : ScriptedInstance(p
     m_uiResetTimer(0),
     m_uiRazorgoreNoHumanTimer(0),
     m_uiDefenseTimer(0),
+    m_uiRazorgoreWaveSpawns(0),
+    m_uiRazorgoreWaveDeaths(0),
     m_uiScepterEpicTimer(0),
     m_uiNefarianSpawnTimer(0),
     m_uiScepterQuestStep(0),
@@ -69,6 +71,13 @@ void instance_blackwing_lair::OnCreatureCreate(Creature* pCreature)
         case NPC_BLACKWING_LEGIONNAIRE:
         case NPC_BLACKWING_MAGE:
         case NPC_DRAGONSPAWN:
+            // A summon already in flight can finish after FAIL/SPECIAL. It
+            // belongs to the old wave, not the reset room or the next phase.
+            if (pCreature->IsTemporarySummon() && GetData(TYPE_RAZORGORE) != IN_PROGRESS)
+            {
+                pCreature->ForcedDespawn();
+                break;
+            }
             // Increase the NPC counter depending on dragonspawn or not
             if (pCreature->GetEntry() == NPC_DRAGONSPAWN)
                 m_uiDragonspawnCount++;
@@ -76,6 +85,7 @@ void instance_blackwing_lair::OnCreatureCreate(Creature* pCreature)
                 m_uiBlackwingDefCount++;
             // Egg room defenders attack players and Razorgore on spawn
             m_lDefendersGuids.push_back(pCreature->GetObjectGuid());
+            ++m_uiRazorgoreWaveSpawns;
             break;
         // Nefarian encounter
         case NPC_BLACK_SPAWNER:
@@ -152,6 +162,12 @@ void instance_blackwing_lair::SetData(uint32 uiType, uint32 uiData)
 {
     if (uiType == TYPE_RAZORGORE)
     {
+        const uint32 previous = m_auiEncounter[uiType];
+        // Native evade/death callbacks can arrive more than once. Never extend
+        // a reset, roll phase two back to eggs, or restart waves during cleanup.
+        if (uiData == previous || previous == DONE ||
+            (uiData == IN_PROGRESS && (m_uiResetTimer || previous == SPECIAL)) ||
+            (uiData == SPECIAL && previous != IN_PROGRESS)) return;
         if (uiData == IN_PROGRESS || uiData == SPECIAL)
         {
             // Capture participation before the first instance update, including
@@ -206,9 +222,16 @@ void instance_blackwing_lair::SetData(uint32 uiType, uint32 uiData)
             else if (uiData == FAIL)
             {
                 m_uiResetTimer = 30000;
+                m_uiDefenseTimer = 0;
+                sLog.outString("BWL_RAZORGORE_RESET instance=%u defenders=%u reason=encounter_failed",
+                    instance->GetInstanceId(), uint32(m_lDefendersGuids.size()));
+                for (ObjectGuid guid : m_vGeneratorGuids)
+                    if (Creature* generator = instance->GetCreature(guid))
+                        generator->InterruptNonMeleeSpells(false);
 
                 if (Creature* razorgore = GetSingleCreatureFromStorage(NPC_RAZORGORE))
                 {
+                    razorgore->RemoveAurasDueToSpell(SPELL_POSSESS);
                     DoScriptText(SAY_RAZORGORE_DEATH, razorgore);
                     razorgore->CastSpell(nullptr, SPELL_FIREBALL, TRIGGERED_OLD_TRIGGERED);
                     razorgore->ForcedDespawn(5000);
@@ -223,7 +246,9 @@ void instance_blackwing_lair::SetData(uint32 uiType, uint32 uiData)
                 }
 
                 // Reset defenders
-                for (GuidList::const_iterator itr = m_lDefendersGuids.begin(); itr != m_lDefendersGuids.end(); ++itr)
+                GuidList defenders;
+                defenders.swap(m_lDefendersGuids);
+                for (GuidList::const_iterator itr = defenders.begin(); itr != defenders.end(); ++itr)
                 {
                     if (Creature* pDefender = instance->GetCreature(*itr))
                         pDefender->ForcedDespawn();
@@ -356,13 +381,21 @@ void instance_blackwing_lair::SetData64(uint32 uiData, uint64 uiGuid)
 {
     if (uiData == DATA_DRAGON_EGG)
     {
-        if (GameObject* pEgg = instance->GetGameObject(ObjectGuid(uiGuid)))
-            m_lUsedEggsGuids.push_back(pEgg->GetObjectGuid());
+        const ObjectGuid eggGuid(uiGuid);
+        if (GetData(TYPE_RAZORGORE) != IN_PROGRESS || m_uiResetTimer ||
+            std::find(m_lDragonEggsGuids.begin(), m_lDragonEggsGuids.end(), eggGuid) == m_lDragonEggsGuids.end() ||
+            std::find(m_lUsedEggsGuids.begin(), m_lUsedEggsGuids.end(), eggGuid) != m_lUsedEggsGuids.end() ||
+            !instance->GetGameObject(eggGuid)) return;
+        m_lUsedEggsGuids.push_back(eggGuid);
 
         // If all eggs are destroyed, then allow Razorgore to be attacked
         if (m_lUsedEggsGuids.size() == m_lDragonEggsGuids.size())
         {
             SetData(TYPE_RAZORGORE, SPECIAL);
+            m_uiDefenseTimer = 0;
+            for (ObjectGuid guid : m_vGeneratorGuids)
+                if (Creature* generator = instance->GetCreature(guid))
+                    generator->InterruptNonMeleeSpells(false);
             DoToggleGameObjectFlags(GO_ORB_OF_DOMINATION, GO_FLAG_NO_INTERACT, true);
 
             // Emote for the start of the second phase
@@ -399,8 +432,11 @@ void instance_blackwing_lair::OnCreatureEnterCombat(Creature* pCreature)
 {
     if (pCreature->GetEntry() == NPC_GRETHOK_CONTROLLER)
     {
+        if (m_uiResetTimer || (GetData(TYPE_RAZORGORE) != NOT_STARTED && GetData(TYPE_RAZORGORE) != FAIL)) return;
         SetData(TYPE_RAZORGORE, IN_PROGRESS);
         m_uiDefenseTimer = 40000;
+        m_uiRazorgoreWaveSpawns = 0;
+        m_uiRazorgoreWaveDeaths = 0;
     }
 }
 
@@ -425,10 +461,20 @@ void instance_blackwing_lair::OnCreatureDeath(Creature* pCreature)
             break;
         case NPC_BLACKWING_LEGIONNAIRE:
         case NPC_BLACKWING_MAGE:
-            m_uiBlackwingDefCount--;
+            if (std::find(m_lDefendersGuids.begin(), m_lDefendersGuids.end(), pCreature->GetObjectGuid()) != m_lDefendersGuids.end())
+            {
+                m_lDefendersGuids.remove(pCreature->GetObjectGuid());
+                if (m_uiBlackwingDefCount) --m_uiBlackwingDefCount;
+                ++m_uiRazorgoreWaveDeaths;
+            }
             break;
         case NPC_DRAGONSPAWN:
-            m_uiDragonspawnCount--;
+            if (std::find(m_lDefendersGuids.begin(), m_lDefendersGuids.end(), pCreature->GetObjectGuid()) != m_lDefendersGuids.end())
+            {
+                m_lDefendersGuids.remove(pCreature->GetObjectGuid());
+                if (m_uiDragonspawnCount) --m_uiDragonspawnCount;
+                ++m_uiRazorgoreWaveDeaths;
+            }
             break;
         case NPC_BLUE_DRAKONID:
         case NPC_GREEN_DRAKONID:
@@ -544,10 +590,7 @@ bool instance_blackwing_lair::UpdateRazorgoreAbandonment(uint32 diff)
     sLog.outString("BWL_RAZORGORE_RECOVERY instance=%u phase=%u reason=no_connected_living_human grace_ms=%u",
         instance->GetInstanceId(), state, grace);
 
-    // Use normal possession teardown before the existing FAIL cleanup. Do not
-    // edit charm GUIDs or bypass the instance's normal entry checks.
-    if (Creature* razorgore = GetSingleCreatureFromStorage(NPC_RAZORGORE))
-        razorgore->RemoveAurasDueToSpell(SPELL_POSSESS);
+    // FAIL performs normal possession teardown for every failure path.
     SetData(TYPE_RAZORGORE, FAIL);
     return true;
 }
@@ -665,16 +708,23 @@ void instance_blackwing_lair::Update(uint32 uiDiff)
             m_uiResetTimer -= uiDiff;
     }
 
-    if (GetData(TYPE_RAZORGORE) != IN_PROGRESS)
+    if (GetData(TYPE_RAZORGORE) != IN_PROGRESS || !m_uiDefenseTimer || m_uiResetTimer)
         return;
 
     if (m_uiDefenseTimer < uiDiff)
     {
+        // One record per wave, never per map tick. Actual arrivals and deaths
+        // since the preceding wave distinguish backlog from duplicate spawning.
+        sLog.outString("BWL_RAZORGORE_WAVE instance=%u spawned_since_wave=%u killed_since_wave=%u alive_orcs=%u alive_dragonkin=%u",
+            instance->GetInstanceId(), m_uiRazorgoreWaveSpawns, m_uiRazorgoreWaveDeaths,
+            m_uiBlackwingDefCount, m_uiDragonspawnCount);
+        m_uiRazorgoreWaveSpawns = 0;
+        m_uiRazorgoreWaveDeaths = 0;
         // Randomize generators
         std::shuffle(m_vGeneratorGuids.begin(), m_vGeneratorGuids.end(), *GetRandomGenerator());
 
         // Spawn the defenders
-        for (uint8 i = 0; i < MAX_EGGS_DEFENDERS; ++i)
+        for (uint8 i = 0; i < MAX_EGGS_DEFENDERS && i < m_vGeneratorGuids.size(); ++i)
         {
             Creature* pGenerator = instance->GetCreature(m_vGeneratorGuids[i]);
             if (!pGenerator)

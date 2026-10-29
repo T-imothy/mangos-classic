@@ -162,6 +162,8 @@ class instance_blackwing_lair : public ScriptedInstance
         uint32 m_uiResetTimer;
         uint32 m_uiRazorgoreNoHumanTimer;
         uint32 m_uiDefenseTimer;
+        uint32 m_uiRazorgoreWaveSpawns;
+        uint32 m_uiRazorgoreWaveDeaths;
         uint32 m_uiScepterEpicTimer;
         uint32 m_uiNefarianSpawnTimer;
         uint8 m_uiScepterQuestStep;

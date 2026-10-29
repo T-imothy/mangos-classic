@@ -33,6 +33,10 @@ methods = '\n'.join(block(source, marker) for marker in (
     'bool instance_blackwing_lair::HasActiveRazorgoreHuman(',
     'bool instance_blackwing_lair::UpdateRazorgoreAbandonment(',
     'void instance_blackwing_lair::Update(',
+    'void instance_blackwing_lair::OnCreatureCreate(',
+    'void instance_blackwing_lair::OnCreatureEnterCombat(',
+    'void instance_blackwing_lair::OnCreatureDeath(',
+    'void instance_blackwing_lair::SetData64(',
 ))
 native_header = header[header.index('enum\n'):header.rindex('#endif')]
 native_header = native_header.replace(' override', '').replace('protected:', 'public:')
@@ -56,7 +60,7 @@ using uint8 = uint8_t; using uint32 = uint32_t; using uint64 = uint64_t;
 using ObjectGuid = unsigned; using GuidList = std::list<ObjectGuid>; using GuidVector = std::vector<ObjectGuid>;
 constexpr uint32 IN_MILLISECONDS = 1000, MINUTE = 60, HOUR = 3600;
 enum { WORLD_SESSION_STATE_READY = 2, WORLD_SESSION_STATE_OFFLINE = 3,
-       GO_FLAG_NO_INTERACT = 16, TRIGGERED_NONE = 0, TRIGGERED_OLD_TRIGGERED = 1, TEMPSPAWN_DEAD_DESPAWN = 2 };
+       GO_FLAG_NO_INTERACT = 16, TRIGGERED_NONE = 0, TRIGGERED_OLD_TRIGGERED = 1, TEMPSPAWN_DEAD_DESPAWN = 2, AI_EVENT_CUSTOM_A=9 };
 __STATES__
 struct Position { double x, y, z, o; };
 struct WorldObject {};
@@ -81,8 +85,12 @@ struct CreatureAI {
     unsigned evades = 0;
     void EnterEvadeMode() { ++evades; }
     void SetCombatScriptStatus(bool) {}
+    void SendAIEvent(unsigned, void*, void*) {}
 };
 struct Creature {
+    unsigned entry=0,guid=0,casts=0,interrupts=0; bool temporary=false;
+    unsigned GetEntry(){return entry;} unsigned GetObjectGuid(){return guid;}
+    bool IsTemporarySummon(){return temporary;} void InterruptNonMeleeSpells(bool){++interrupts;}
     bool alive = true, despawned = false, possessed = true;
     unsigned releases = 0, resetCasts = 0, despawns = 0, respawns = 0;
     CreatureAI ai;
@@ -90,6 +98,7 @@ struct Creature {
     CreatureAI* AI() { return &ai; }
     void RemoveAurasDueToSpell(uint32 spell) { assert(spell == 19832); possessed = false; ++releases; }
     void CastSpell(void*, uint32 spell, uint32) {
+        ++casts;
         if (spell == 23024) { assert(!possessed); ++resetCasts; }
     }
     void ForcedDespawn(uint32 = 0) { ++despawns; despawned = true; alive = false; }
@@ -110,6 +119,7 @@ struct Map {
     GameObject* GetGameObject(unsigned id) { return objects.count(id) ? objects[id] : nullptr; }
 };
 struct ScriptedInstance {
+    std::map<unsigned,unsigned> m_npcEntryGuidStore;
     Map* instance; unsigned saves = 0; std::map<unsigned, unsigned> doorUses; bool orbDisabled = false;
     explicit ScriptedInstance(Map* map) : instance(map) {}
     Creature* GetSingleCreatureFromStorage(unsigned id) const { return instance->GetCreature(id); }
@@ -161,7 +171,7 @@ struct Fixture {
         // Native generators may be unloaded; their GUID slots remain valid.
         raid.m_vGeneratorGuids = {100, 101, 102, 103};
     }
-    void start(uint32 phase = IN_PROGRESS) { raid.SetData(TYPE_RAZORGORE, phase); }
+    void start(uint32 phase = IN_PROGRESS) { raid.SetData(TYPE_RAZORGORE, IN_PROGRESS); if(phase!=IN_PROGRESS)raid.SetData(TYPE_RAZORGORE, phase); }
     void disconnect() { session.state = WORLD_SESSION_STATE_OFFLINE; session.socket = false; }
     void reconnect() { session.state = WORLD_SESSION_STATE_READY; session.socket = true; }
 };
@@ -182,12 +192,12 @@ int main() {
         assert(f.raid.m_lDefendersGuids.empty() && f.raid.m_lUsedEggsGuids.empty());
         assert(f.raid.m_uiBlackwingDefCount == 0 && f.raid.m_uiDragonspawnCount == 0);
         assert(f.raid.m_uiResetTimer == 30000 && !f.raid.m_bRazorgoreHumanAttempt);
-        assert(sLog.lines.size() == 1);
+        assert(sLog.lines.size() == 2);
         assert(sLog.lines[0] == "BWL_RAZORGORE_RECOVERY instance=42 phase=1 reason=no_connected_living_human grace_ms=60000");
         f.raid.Update(29999); assert(f.boss.respawns == 0 && f.egg.respawns == 0);
         f.raid.Update(1); assert(f.boss.respawns == 1 && f.egg.respawns == 1);
         f.raid.Update(120000); assert(f.boss.releases == 1 && f.boss.resetCasts == 1);
-        assert(sLog.lines.size() == 1);
+        assert(sLog.lines.size() == 2);
     }
     // Reconnection, or another real participant, restarts the entire grace.
     {
@@ -231,9 +241,9 @@ int main() {
         f.boss.possessed = false; // ordinary native FAIL already tears down possession
         f.raid.SetData(TYPE_RAZORGORE, state);
         assert(!f.raid.m_bRazorgoreHumanAttempt && f.raid.m_uiRazorgoreNoHumanTimer == 0);
-        f.raid.Update(60000); assert(f.boss.releases == 0);
+        f.raid.Update(60000); assert(f.boss.releases == (state==FAIL ? 1u : 0u));
         f.raid.SetData(TYPE_RAZORGORE, IN_PROGRESS); f.raid.Update(60000);
-        assert(!f.raid.m_bRazorgoreHumanAttempt && f.boss.releases == 0);
+        assert(!f.raid.m_bRazorgoreHumanAttempt && f.boss.releases == (state==FAIL ? 1u : 0u));
     }
     // Invalid/transient session and world states never masquerade as a live human.
     for (unsigned invalid = 0; invalid < 10; ++invalid) {
@@ -281,6 +291,46 @@ int main() {
         Fixture f; f.start(); f.raid.SetData(TYPE_FIREMAW, IN_PROGRESS); f.disconnect(); f.raid.Update(60000);
         assert(f.raid.GetData(TYPE_RAZORGORE) == FAIL && f.raid.IsEncounterInProgress());
         assert(!f.raid.m_bIsMainGateOpen);
+    }
+
+    // Real wave startup, cooldown re-entry, late summons, repeated failure and
+    // stale eggs cannot leave a reset room with an active wave timer.
+    {
+        Fixture f; Creature grethok, generator, late;
+        grethok.entry=NPC_GRETHOK_CONTROLLER;
+        f.raid.m_vGeneratorGuids={100,101,102,103};
+        for(unsigned id:{100u,101u,102u,103u})f.map.creatures[id]=&generator;
+        f.raid.OnCreatureEnterCombat(&grethok);
+        assert(f.raid.m_uiDefenseTimer==40000);
+        f.raid.Update(39999);assert(generator.casts==0);
+        f.raid.Update(2);assert(generator.casts==4&&f.raid.m_uiDefenseTimer==15000);
+        f.raid.Update(15001);assert(generator.casts==8);
+        f.raid.SetData(TYPE_RAZORGORE,FAIL);
+        assert(generator.interrupts==4&&!f.raid.m_uiDefenseTimer);
+        f.raid.Update(1000);f.raid.SetData(TYPE_RAZORGORE,FAIL);
+        assert(f.raid.m_uiResetTimer==29000&&f.boss.releases==1);
+        f.raid.OnCreatureEnterCombat(&grethok);f.raid.SetData(TYPE_RAZORGORE,IN_PROGRESS);
+        assert(f.raid.GetData(TYPE_RAZORGORE)==FAIL&&!f.raid.m_uiDefenseTimer);
+        late.temporary=true;late.entry=NPC_BLACKWING_MAGE;late.guid=50;
+        f.raid.OnCreatureCreate(&late);assert(late.despawns==1&&f.raid.m_lDefendersGuids.empty());
+        f.raid.SetData64(DATA_DRAGON_EGG,2);assert(f.raid.m_lUsedEggsGuids.empty());
+        f.raid.Update(29000);f.raid.Update(60000);
+        assert(generator.casts==8&&f.egg.respawns==1&&f.boss.respawns==1);
+        f.raid.OnCreatureEnterCombat(&grethok);assert(f.raid.m_uiDefenseTimer==40000);
+        late.alive=true;late.despawned=false;f.raid.OnCreatureCreate(&late);
+        assert(f.raid.m_uiBlackwingDefCount==1&&f.raid.m_uiRazorgoreWaveSpawns==1);
+        f.raid.OnCreatureDeath(&late);f.raid.OnCreatureDeath(&late);
+        assert(f.raid.m_uiBlackwingDefCount==0&&f.raid.m_uiRazorgoreWaveDeaths==1);
+        GameObject otherEgg;f.map.objects[3]=&otherEgg;f.raid.m_lDragonEggsGuids.push_back(3);
+        f.raid.SetData64(DATA_DRAGON_EGG,999);assert(f.raid.m_lUsedEggsGuids.empty());
+        f.raid.SetData64(DATA_DRAGON_EGG,2);f.raid.SetData64(DATA_DRAGON_EGG,2);
+        assert(f.raid.m_lUsedEggsGuids.size()==1&&f.raid.GetData(TYPE_RAZORGORE)==IN_PROGRESS);
+        f.raid.SetData64(DATA_DRAGON_EGG,3);
+        assert(f.raid.GetData(TYPE_RAZORGORE)==SPECIAL&&!f.raid.m_uiDefenseTimer);
+        f.raid.OnCreatureEnterCombat(&grethok);f.raid.SetData(TYPE_RAZORGORE,IN_PROGRESS);
+        assert(f.raid.GetData(TYPE_RAZORGORE)==SPECIAL);
+        f.raid.SetData(TYPE_RAZORGORE,DONE);f.raid.SetData(TYPE_RAZORGORE,FAIL);
+        assert(f.raid.GetData(TYPE_RAZORGORE)==DONE&&!f.raid.m_uiResetTimer);
     }
     std::cout << "PASS: actual Classic Razorgore human/session classification, both phases, 60s grace, native FAIL teardown and 30s reset\n";
 }
