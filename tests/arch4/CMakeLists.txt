@@ -391,6 +391,21 @@ endif()
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   foreach(_raid_regression IN ITEMS
     raid_activation
+    melee_formation
+    blackwing_movement_safety
+    suppression_combat_station
+    broodlord_formation
+    suppression_assignment
+    suppression_route
+    suppression_room
+    suppression_native
+    blackwing_position
+    blackwing_ground
+    blackwing_target_policy
+    blackwing_tank_assignment
+    blackwing_support
+    movement_dispatch
+    chase_hazard_dispatch
     onyxia_native
     naxx_control_selection
     naxx_control_commands
