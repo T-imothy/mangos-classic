@@ -415,7 +415,7 @@ bool Master::_StartDB()
     ///- Initialise the world database
     if (!WorldDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
-        sLog.outError("Cannot connect to world database %s", dbstring.c_str());
+        sLog.outError("Cannot connect to world database (connection details omitted; check configuration and database server log)");
         return false;
     }
 
@@ -442,7 +442,7 @@ bool Master::_StartDB()
     ///- Initialise the Character database
     if (!CharacterDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
-        sLog.outError("Cannot connect to Character database %s", dbstring.c_str());
+        sLog.outError("Cannot connect to Character database (connection details omitted; check configuration and database server log)");
 
         ///- Wait for already started DB delay threads to end
         WorldDatabase.HaltDelayThread();
@@ -475,7 +475,7 @@ bool Master::_StartDB()
     sLog.outString("Login Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
     if (!LoginDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
-        sLog.outError("Cannot connect to login database %s", dbstring.c_str());
+        sLog.outError("Cannot connect to login database (connection details omitted; check configuration and database server log)");
 
         ///- Wait for already started DB delay threads to end
         WorldDatabase.HaltDelayThread();
@@ -511,7 +511,7 @@ bool Master::_StartDB()
     sLog.outString("Logs Database total connections: %i (%i async workers)", nConnections + nWorkers, nWorkers);
     if (!LogsDatabase.Initialize(dbstring.c_str(), nConnections, nWorkers))
     {
-        sLog.outError("Cannot connect to logs database %s", dbstring.c_str());
+        sLog.outError("Cannot connect to logs database (connection details omitted; check configuration and database server log)");
 
         ///- Wait for already started DB delay threads to end
         WorldDatabase.HaltDelayThread();

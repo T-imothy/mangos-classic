@@ -455,3 +455,9 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
     --core ${PROJECT_SOURCE_DIR} --era ZERO)
   set_tests_properties(raid_pet_admission PROPERTIES TIMEOUT 180)
 endif()
+
+# October 29 upstream integration: preserve party recovery and native ownership.
+if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
+  add_test(NAME upstream_20261029 COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/upstream_20261029_regression.py ${PROJECT_SOURCE_DIR})
+  set_tests_properties(upstream_20261029 PROPERTIES TIMEOUT 180)
+endif()
