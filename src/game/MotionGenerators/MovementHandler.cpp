@@ -31,6 +31,7 @@
 #include "Globals/ObjectMgr.h"
 #include "World/World.h"
 #include "Anticheat/Anticheat.hpp"
+#include <cmath>
 
 void WorldSession::HandleMoveWorldportAckOpcode(WorldPacket& /*recv_data*/)
 {
@@ -408,6 +409,71 @@ void WorldSession::HandleMovementOpcodes(WorldPacket& recv_data)
     mover->SendMessageToAllWhoSeeMeMove(data, _player->GetObjectGuid());
 }
 
+void WorldSession::NotifyMovementControllerChanged(bool resync)
+{
+    ++m_speedControlGeneration;
+    if (!resync || !HasClientSocket() || !_player) return;
+    // Old-controller ACKs cannot refresh the new mover. Issue authoritative
+    // speeds in this generation, including a fresh self baseline on release.
+    for (uint32 type = 0; type < MAX_MOVE_TYPE; ++type)
+        SendForcedSpeedChange(_player->GetMover(), UnitMoveType(type));
+}
+
+void WorldSession::RetireSpeedOrder(uint32 counter, ForcedSpeedOrder order)
+{
+    m_recentSpeedOrders[counter] = order;
+    m_recentSpeedOrderSequence.push_back(counter);
+    while (m_recentSpeedOrderSequence.size() > MAX_TRACKED_SPEED_ORDERS)
+    {
+        m_recentSpeedOrders.erase(m_recentSpeedOrderSequence.front());
+        m_recentSpeedOrderSequence.pop_front();
+    }
+}
+
+void WorldSession::SendForcedSpeedChange(Unit* mover, UnitMoveType moveType)
+{
+    if (!mover || !_player || moveType >= MAX_MOVE_TYPE ||
+        mover->GetControllingPlayer() != _player || !mover->IsClientControlled()) return;
+    const uint32 counter = GetOrderCounter();
+    if (HasClientSocket())
+    {
+        // Supersession survives ACK reordering: an older order remains stale even
+        // after the latest order has already been acknowledged and removed.
+        for (auto& pending : m_pendingSpeedOrders)
+            if (pending.second.guid == mover->GetObjectGuid() && pending.second.type == moveType)
+                pending.second.superseded = true;
+        while (m_pendingSpeedOrders.size() >= MAX_TRACKED_SPEED_ORDERS)
+        {
+            auto oldest = m_pendingSpeedOrders.find(m_pendingSpeedOrderSequence.front());
+            m_pendingSpeedOrderSequence.pop_front();
+            RetireSpeedOrder(oldest->first, oldest->second);
+            m_pendingSpeedOrders.erase(oldest);
+        }
+        m_pendingSpeedOrders[counter] = {mover->GetObjectGuid(), moveType, mover->GetSpeed(moveType), m_speedControlGeneration};
+        m_pendingSpeedOrderSequence.push_back(counter);
+    }
+    const SpeedOpcodePair& speedOpcodes = SetSpeed2Opc_table[moveType];
+    WorldPacket data(speedOpcodes[0], 18);
+    data << mover->GetPackGUID();
+    data << counter;
+    data << mover->GetSpeed(moveType);
+    if (HasClientSocket()) GetAnticheat()->OrderSent(data.GetOpcode(), counter);
+    IncrementOrderCounter();
+    // Socketless bots still consume this packet for mount state, but never
+    // acknowledge it. Preserve that notification without allocating a ledger.
+    SendPacket(data);
+}
+
+void WorldSession::LogIgnoredSpeedAck(char const* reason, ObjectGuid guid, uint32 counter, uint16 opcode)
+{
+    const uint32 now = WorldTimer::getMSTime();
+    if (m_nextSpeedAckDiagnostic && int32(now - m_nextSpeedAckDiagnostic) < 0) return;
+    m_nextSpeedAckDiagnostic = now + 10000;
+    sLog.outString("SpeedAck ignored: player=%s account=%u reason=%s ackGuid=%s mover=%s opcode=%u counter=%u generation=%u",
+        _player->GetName(), GetAccountId(), reason, guid.GetString().c_str(),
+        _player->GetMover() ? _player->GetMover()->GetGuidStr().c_str() : "<none>", opcode, counter, m_speedControlGeneration);
+}
+
 void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recv_data)
 {
     uint16 opcode = recv_data.GetOpcode();
@@ -424,70 +490,92 @@ void WorldSession::HandleForceSpeedChangeAckOpcodes(WorldPacket& recv_data)
     recv_data >> movementInfo;
     recv_data >> newspeed;
 
-    // we must inform the anticheat even if it is not for the mover, as it will affect pets
-    m_anticheat->OrderAck(opcode, counter);
-    /*----------------*/
-
-    // Process anticheat checks, remember client-side speed ...
-    if (_player->IsSelfMover() && !m_anticheat->SpeedChangeAck(movementInfo, recv_data, newspeed))
-        return;
-
-    // client ACK send one packet for mounted/run case and need skip all except last from its
-    // in other cases anti-cheat check can be fail in false case
     UnitMoveType move_type;
-    UnitMoveType force_move_type;
 
     static char const* move_type_name[MAX_MOVE_TYPE] = {  "Walk", "Run", "RunBack", "Swim", "SwimBack", "TurnRate" };
 
     switch (opcode)
     {
-        case CMSG_FORCE_WALK_SPEED_CHANGE_ACK:          move_type = MOVE_WALK;          force_move_type = MOVE_WALK;        break;
-        case CMSG_FORCE_RUN_SPEED_CHANGE_ACK:           move_type = MOVE_RUN;           force_move_type = MOVE_RUN;         break;
-        case CMSG_FORCE_RUN_BACK_SPEED_CHANGE_ACK:      move_type = MOVE_RUN_BACK;      force_move_type = MOVE_RUN_BACK;    break;
-        case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:          move_type = MOVE_SWIM;          force_move_type = MOVE_SWIM;        break;
-        case CMSG_FORCE_SWIM_BACK_SPEED_CHANGE_ACK:     move_type = MOVE_SWIM_BACK;     force_move_type = MOVE_SWIM_BACK;   break;
-        case CMSG_FORCE_TURN_RATE_CHANGE_ACK:           move_type = MOVE_TURN_RATE;     force_move_type = MOVE_TURN_RATE;   break;
+        case CMSG_FORCE_WALK_SPEED_CHANGE_ACK:          move_type = MOVE_WALK;        break;
+        case CMSG_FORCE_RUN_SPEED_CHANGE_ACK:           move_type = MOVE_RUN;         break;
+        case CMSG_FORCE_RUN_BACK_SPEED_CHANGE_ACK:      move_type = MOVE_RUN_BACK;    break;
+        case CMSG_FORCE_SWIM_SPEED_CHANGE_ACK:          move_type = MOVE_SWIM;        break;
+        case CMSG_FORCE_SWIM_BACK_SPEED_CHANGE_ACK:     move_type = MOVE_SWIM_BACK;   break;
+        case CMSG_FORCE_TURN_RATE_CHANGE_ACK:           move_type = MOVE_TURN_RATE;   break;
         default:
             sLog.outError("WorldSession::HandleForceSpeedChangeAck: Unknown move type opcode: %u", opcode);
             return;
     }
 
-    Unit* mover = _player->GetMover();
-
-    if (!ProcessMovementInfo(movementInfo, mover, _player, recv_data))
+    auto pending = m_pendingSpeedOrders.find(counter);
+    if (pending == m_pendingSpeedOrders.end())
+    {
+        auto recent = m_recentSpeedOrders.find(counter);
+        if (recent != m_recentSpeedOrders.end() && recent->second.guid == guid && recent->second.type == move_type)
+        {
+            // Evicted legitimate orders still retire their anticheat pending
+            // ACK once. Exact duplicates must not produce a false bad-ACK cheat.
+            if (!recent->second.acknowledged)
+            {
+                m_anticheat->OrderAckIfPending(opcode, counter);
+                recent->second.acknowledged = true;
+            }
+            return;
+        }
+        if (recent == m_recentSpeedOrders.end()) m_anticheat->OrderAck(opcode, counter);
+        LogIgnoredSpeedAck("untracked_or_mismatched", guid, counter, opcode);
         return;
+    }
+    if (pending->second.guid != guid || pending->second.type != move_type)
+    {
+        LogIgnoredSpeedAck("order_identity_mismatch", guid, counter, opcode);
+        return; // A forged identity cannot consume another unit's real order.
+    }
+    ForcedSpeedOrder order = pending->second;
+    m_pendingSpeedOrders.erase(pending);
+    m_pendingSpeedOrderSequence.erase(std::find(m_pendingSpeedOrderSequence.begin(), m_pendingSpeedOrderSequence.end(), counter));
+    order.acknowledged = true;
+    RetireSpeedOrder(counter, order);
+    m_anticheat->OrderAckIfPending(opcode, counter);
 
+    Unit* mover = _player->GetMover();
+    if (!mover || guid != mover->GetObjectGuid() || order.generation != m_speedControlGeneration || order.superseded)
+    {
+        LogIgnoredSpeedAck("obsolete_mover_or_order", guid, counter, opcode);
+        return;
+    }
+    const float expected = mover->GetSpeed(move_type);
+    if (std::fabs(order.speed - expected) > 0.01f)
+    {
+        LogIgnoredSpeedAck("speed_changed_after_order", guid, counter, opcode);
+        return;
+    }
+    if (!std::isfinite(newspeed) ||
+        (!mover->GetTransport() && newspeed > expected + 0.01f))
+    {
+        sLog.outError("SpeedAck kick: player=%s account=%u mover=%s ackGuid=%s opcode=%u counter=%u type=%s expected=%f received=%f generation=%u",
+            _player->GetName(), GetAccountId(), mover->GetGuidStr().c_str(), guid.GetString().c_str(),
+            opcode, counter, move_type_name[move_type], expected, newspeed, m_speedControlGeneration);
+        KickPlayer();
+        return;
+    }
+    if (!mover->GetTransport() && expected > newspeed + 0.01f)
+    {
+        LogIgnoredSpeedAck("current_speed_resend", guid, counter, opcode);
+        // SetSpeedRate with an unchanged value sends nothing; send the mover's
+        // existing authoritative speed without copying the human body's rate.
+        SendForcedSpeedChange(mover, move_type);
+        return;
+    }
+    if (_player->IsSelfMover() && !m_anticheat->SpeedChangeAck(movementInfo, recv_data, newspeed)) return;
+    Player* plMover = mover->IsPlayer() ? static_cast<Player*>(mover) : nullptr;
+    if (!ProcessMovementInfo(movementInfo, mover, plMover, recv_data)) return;
     const SpeedOpcodePair& speedOpcodes = SetSpeed2Opc_table[move_type];
     WorldPacket data(speedOpcodes[2], 18);
     data << guid.WriteAsPacked();
     data << movementInfo;
     data << newspeed;
     mover->SendMessageToAllWhoSeeMeMove(data, _player->GetObjectGuid());
-
-    // skip all forced speed changes except last and unexpected
-    // in run/mounted case used one ACK and it must be skipped.m_forced_speed_changes[MOVE_RUN} store both.
-    if (_player->m_forced_speed_changes[force_move_type] > 0)
-    {
-        --_player->m_forced_speed_changes[force_move_type];
-        if (_player->m_forced_speed_changes[force_move_type] > 0)
-            return;
-    }
-
-    if (!_player->GetTransport() && fabs(mover->GetSpeed(move_type) - newspeed) > 0.01f)
-    {
-        if (mover->GetSpeed(move_type) > newspeed)        // must be greater - just correct
-        {
-            sLog.outError("%sSpeedChange player %s is NOT correct (must be %f instead %f), force set to correct value",
-                          move_type_name[move_type], _player->GetName(), mover->GetSpeed(move_type), newspeed);
-            mover->SetSpeedRate(move_type, _player->GetSpeedRate(move_type), true);
-        }
-        else                                                // must be lesser - cheating
-        {
-            BASIC_LOG("Player %s from account id %u kicked for incorrect speed (must be %f instead %f)",
-                      _player->GetName(), _player->GetSession()->GetAccountId(), mover->GetSpeed(move_type), newspeed);
-            _player->GetSession()->KickPlayer();
-        }
-    }
 }
 
 void WorldSession::HandleSetActiveMoverOpcode(WorldPacket& recv_data)

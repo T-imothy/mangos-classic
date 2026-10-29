@@ -1009,6 +1009,12 @@ void SessionAnticheat::OrderAck(uint16 opcode, uint32 counter)
         _movementData->OrderAck(opcode, counter);
 }
 
+void SessionAnticheat::OrderAckIfPending(uint16 opcode, uint32 counter)
+{
+    if (_movementData)
+        _movementData->OrderAckIfPending(opcode, counter);
+}
+
 void SessionAnticheat::WardenPacket(WorldPacket &packet)
 {
     _warden->HandlePacket(packet);

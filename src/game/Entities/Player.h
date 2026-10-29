@@ -2047,7 +2047,7 @@ class Player : public Unit
 
         void UpdateClientControl(Unit const* target, bool enabled, bool forced = false) const;
 
-        void SetMover(Unit* target) { m_mover = target ? target : this; }
+        void SetMover(Unit* target);
         Unit* GetMover() const { return m_mover; }
         bool IsSelfMover() const { return m_mover == this; }// normal case for player not controlling other unit
 
@@ -2093,8 +2093,6 @@ class Player : public Unit
         void HandleStealthedUnitsDetection();
 
         Camera& GetCamera() { return m_camera; }
-
-        uint8 m_forced_speed_changes[MAX_MOVE_TYPE];
 
         bool HasAtLoginFlag(AtLoginFlags f) const { return (m_atLoginFlags & f) != 0; }
         void SetAtLoginFlag(AtLoginFlags f) { m_atLoginFlags |= f; }

@@ -197,6 +197,11 @@ add_test(NAME eventai_ranged_metadata COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOUR
 
 add_test(NAME portable_mailbox_faction COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/portable_mailbox_faction_regression.py ${CMAKE_SOURCE_DIR})
 add_test(NAME socket_header_rejection COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/socket_header_rejection_regression.py ${CMAKE_SOURCE_DIR})
+if(WIN32 AND MSVC)
+  add_test(NAME movement_speed_ack COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/movement_speed_ack_regression.py --core ${CMAKE_SOURCE_DIR})
+  add_test(NAME razorgore_abandonment COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/razorgore_abandonment_regression.py ${CMAKE_SOURCE_DIR})
+  set_tests_properties(movement_speed_ack razorgore_abandonment PROPERTIES TIMEOUT 180)
+endif()
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME urgent_attack COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/urgent_attack_regression.py)
   add_test(NAME raid_entry_roster COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/recruitment_regression.py ${_arch4_playerbots_source})

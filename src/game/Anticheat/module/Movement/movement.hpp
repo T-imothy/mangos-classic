@@ -131,6 +131,7 @@ class Movement
 
         void OrderSent(uint16 opcode, uint32 counter);
         void OrderAck(uint16 opcode, uint32 counter);
+        void OrderAckIfPending(uint16 opcode, uint32 counter);
         void CheckExpiredOrders(uint32 latency);
 
         bool ExtrapolateMovement(MovementInfo const& mi, uint32 diffMs, Position &pos) const;

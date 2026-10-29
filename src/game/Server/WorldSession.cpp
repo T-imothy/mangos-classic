@@ -412,6 +412,14 @@ char const* WorldSession::GetPlayerName() const
 
 void WorldSession::SetPlayer(Player* plr, uint32 playerGuid)
 {
+    // NewPlayer also resets native anticheat state; reset our identities at
+    // the same boundary without sending orders for the old character.
+    NotifyMovementControllerChanged();
+    m_pendingSpeedOrders.clear();
+    m_pendingSpeedOrderSequence.clear();
+    m_recentSpeedOrders.clear();
+    m_recentSpeedOrderSequence.clear();
+    m_nextSpeedAckDiagnostic = 0;
     _player = plr;
     if (plr)
         m_GUIDLow = playerGuid;

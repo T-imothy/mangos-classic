@@ -99,6 +99,7 @@ class SessionAnticheat final : public SessionAnticheatInterface
 
         virtual void OrderSent(uint16 opcode, uint32 counter) override;
         virtual void OrderAck(uint16 opcode, uint32 counter) override;
+        virtual void OrderAckIfPending(uint16 opcode, uint32 counter) override;
 
         // warden
         virtual void WardenPacket(WorldPacket &packet) override;

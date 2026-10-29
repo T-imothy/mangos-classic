@@ -96,6 +96,9 @@ class SessionAnticheatInterface
 
         virtual void OrderSent(uint16 opcode, uint32 counter) = 0;
         virtual void OrderAck(uint16 opcode, uint32 counter) = 0;
+        // Only for an ACK already authenticated against the session's exact
+        // issued-order identity. The native queue may have expired meanwhile.
+        virtual void OrderAckIfPending(uint16 opcode, uint32 counter) = 0;
 
         // warden
         virtual void WardenPacket(WorldPacket &packet) = 0;
@@ -279,6 +282,7 @@ class NullSessionAnticheat : public SessionAnticheatInterface
 
         virtual void OrderSent(uint16, uint32) override {}
         virtual void OrderAck(uint16, uint32) override {}
+        virtual void OrderAckIfPending(uint16, uint32) override {}
 
         // warden
         virtual void WardenPacket(WorldPacket &) override {}

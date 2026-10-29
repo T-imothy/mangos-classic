@@ -27,6 +27,7 @@
 #include "Globals/Locales.h"
 #include "Globals/SharedDefines.h"
 #include "Entities/ObjectGuid.h"
+#include "Entities/Object.h"
 #include "AuctionHouse/AuctionHouseMgr.h"
 #include "Entities/Item.h"
 #include "Server/WorldSocket.h"
@@ -421,6 +422,8 @@ class WorldSession
         void SetAccountMaxLevel(uint32 level) { m_accountMaxLevel = level; }
         uint32 GetOrderCounter() const { return m_orderCounter; }
         void IncrementOrderCounter() { ++m_orderCounter; }
+        void SendForcedSpeedChange(Unit* mover, UnitMoveType moveType);
+        void NotifyMovementControllerChanged(bool resync = false);
 
         // Thread safety
         uint32 GetCurrentPlayerLevel() { return m_currentPlayerLevel; }
@@ -845,6 +848,24 @@ class WorldSession
         uint32 m_gameBuild;
         uint32 m_accountMaxLevel;
         uint32 m_orderCounter;
+        struct ForcedSpeedOrder
+        {
+            ObjectGuid guid;
+            UnitMoveType type;
+            float speed;
+            uint32 generation;
+            bool superseded = false;
+            bool acknowledged = false;
+        };
+        static constexpr size_t MAX_TRACKED_SPEED_ORDERS = 128;
+        std::map<uint32, ForcedSpeedOrder> m_pendingSpeedOrders;
+        std::deque<uint32> m_pendingSpeedOrderSequence;
+        std::map<uint32, ForcedSpeedOrder> m_recentSpeedOrders;
+        std::deque<uint32> m_recentSpeedOrderSequence;
+        uint32 m_speedControlGeneration = 0;
+        uint32 m_nextSpeedAckDiagnostic = 0;
+        void RetireSpeedOrder(uint32 counter, ForcedSpeedOrder order);
+        void LogIgnoredSpeedAck(char const* reason, ObjectGuid guid, uint32 counter, uint16 opcode);
         uint32 m_lastAnticheatUpdate;
         std::unique_ptr<SessionAnticheatInterface> m_anticheat;
 

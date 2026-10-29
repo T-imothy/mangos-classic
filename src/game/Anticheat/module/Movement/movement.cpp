@@ -287,6 +287,22 @@ void Movement::OrderAck(uint16 opcode, uint32 counter)
         LookupOpcodeName(opcode), opcode, counter);
 }
 
+void Movement::OrderAckIfPending(uint16 opcode, uint32 counter)
+{
+    // The caller has matched GUID, opcode and counter against a real issued
+    // speed order. CheckExpiredOrders can already have removed this order;
+    // that is not evidence of a forged ACK. Do not relax other ACK handling.
+    for (auto i = _orders.begin(); i != _orders.end(); ++i)
+    {
+        if (GetOrderResponse(i->opcode) == opcode && i->counter == counter)
+        {
+            _ackHistory.push_back({ opcode, WorldTimer::getMSTime() });
+            _orders.erase(i);
+            return;
+        }
+    }
+}
+
 void Movement::CheckExpiredOrders(uint32 latency)
 {
     auto const now = WorldTimer::getMSTime();

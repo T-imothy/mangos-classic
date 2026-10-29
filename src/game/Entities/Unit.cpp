@@ -8567,19 +8567,7 @@ void Unit::SetSpeedRate(UnitMoveType mtype, float rate, bool forced)
         if (forced && IsClientControlled())
         {
             Player* player = const_cast<Player*>(GetControllingPlayer());
-            auto const counter = player->GetSession()->GetOrderCounter();
-
-            // register forced speed changes for WorldSession::HandleForceSpeedChangeAck
-            // and do it only for real sent packets and use run for run/mounted as client expected
-            ++player->m_forced_speed_changes[mtype];
-
-            WorldPacket data(speedOpcodes[0], 18);
-            data << GetPackGUID();
-            data << counter;
-            data << GetSpeed(mtype);
-            player->GetSession()->SendPacket(data);
-            player->GetSession()->GetAnticheat()->OrderSent(data.GetOpcode(), counter);
-            player->GetSession()->IncrementOrderCounter();
+            player->GetSession()->SendForcedSpeedChange(this, mtype);
         }
         else
         {

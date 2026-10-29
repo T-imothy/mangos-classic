@@ -156,8 +156,11 @@ class instance_blackwing_lair : public ScriptedInstance
         uint32 m_auiEncounter[MAX_ENCOUNTER];
 
         void CleanupNefarianStage(bool fullCleanup);
+        bool HasActiveRazorgoreHuman() const;
+        bool UpdateRazorgoreAbandonment(uint32 diff);
 
         uint32 m_uiResetTimer;
+        uint32 m_uiRazorgoreNoHumanTimer;
         uint32 m_uiDefenseTimer;
         uint32 m_uiScepterEpicTimer;
         uint32 m_uiNefarianSpawnTimer;
@@ -167,6 +170,7 @@ class instance_blackwing_lair : public ScriptedInstance
         uint8 m_uiDeadDrakonidsCount;
 
         bool m_bIsMainGateOpen;
+        bool m_bRazorgoreHumanAttempt;
 
         GuidList m_lDragonEggsGuids;
         GuidList m_lDrakonidBonesGuids;

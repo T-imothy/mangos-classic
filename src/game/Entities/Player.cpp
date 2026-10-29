@@ -610,9 +610,6 @@ Player::Player(WorldSession* session): Unit(), m_taxiTracker(*this), m_mover(thi
     m_resetTalentsTime = 0;
     m_itemUpdateQueueBlocked = false;
 
-    for (unsigned char& m_forced_speed_change : m_forced_speed_changes)
-        m_forced_speed_change = 0;
-
     m_stableSlots = 0;
 
     /////////////////// Instance System /////////////////////
@@ -19159,6 +19156,14 @@ void Player::ResurrectUsingRequestDataFinish()
     SetPower(POWER_ENERGY, GetMaxPower(POWER_ENERGY));
 
     SpawnCorpseBones();
+}
+
+void Player::SetMover(Unit* target)
+{
+    Unit* next = target ? target : this;
+    if (next == m_mover) return;
+    m_mover = next;
+    if (GetSession()) GetSession()->NotifyMovementControllerChanged(true);
 }
 
 void Player::UpdateClientControl(Unit const* target, bool enabled, bool forced) const

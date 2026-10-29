@@ -24,10 +24,13 @@ EndScriptData
 */
 
 #include "AI/ScriptDevAI/include/sc_common.h"
+#include "Log/Log.h"
+#include "Server/WorldSession.h"
 #include "blackwing_lair.h"
 
 instance_blackwing_lair::instance_blackwing_lair(Map* pMap) : ScriptedInstance(pMap),
     m_uiResetTimer(0),
+    m_uiRazorgoreNoHumanTimer(0),
     m_uiDefenseTimer(0),
     m_uiScepterEpicTimer(0),
     m_uiNefarianSpawnTimer(0),
@@ -35,7 +38,8 @@ instance_blackwing_lair::instance_blackwing_lair(Map* pMap) : ScriptedInstance(p
     m_uiDragonspawnCount(0),
     m_uiBlackwingDefCount(0),
     m_uiDeadDrakonidsCount(0),
-    m_bIsMainGateOpen(true)
+    m_bIsMainGateOpen(true),
+    m_bRazorgoreHumanAttempt(false)
 {
     Initialize();
 }
@@ -146,6 +150,30 @@ void instance_blackwing_lair::OnObjectCreate(GameObject* pGo)
 
 void instance_blackwing_lair::SetData(uint32 uiType, uint32 uiData)
 {
+    if (uiType == TYPE_RAZORGORE)
+    {
+        if (uiData == IN_PROGRESS || uiData == SPECIAL)
+        {
+            // Capture participation before the first instance update, including
+            // a controller who disconnects immediately after starting the event.
+            if (m_auiEncounter[uiType] != IN_PROGRESS && m_auiEncounter[uiType] != SPECIAL)
+            {
+                m_bRazorgoreHumanAttempt = false;
+                m_uiRazorgoreNoHumanTimer = 0;
+            }
+            if (HasActiveRazorgoreHuman())
+            {
+                m_bRazorgoreHumanAttempt = true;
+                m_uiRazorgoreNoHumanTimer = 0;
+            }
+        }
+        else
+        {
+            m_bRazorgoreHumanAttempt = false;
+            m_uiRazorgoreNoHumanTimer = 0;
+        }
+    }
+
     // Close de the main gate whenever an event starts (if it is not already open)
     if (m_bIsMainGateOpen && (uiData == IN_PROGRESS || uiData == SPECIAL))
     {
@@ -462,8 +490,74 @@ bool instance_blackwing_lair::CheckConditionCriteriaMeet(Player const* pPlayer, 
     return false;
 }
 
+bool instance_blackwing_lair::HasActiveRazorgoreHuman() const
+{
+    for (const auto& ref : instance->GetPlayers())
+    {
+        Player* player = ref.getSource();
+        if (!player || !player->IsInWorld() || !player->IsAlive() || player->IsGameMaster() ||
+            player->GetMap() != instance || player->IsBeingTeleported())
+            continue;
+
+        WorldSession* session = player->GetSession();
+        if (!session || session->GetPlayer() != player || session->GetState() != WORLD_SESSION_STATE_READY ||
+            session->PlayerLogout())
+            continue;
+
+#if defined(BUILD_DEPRECATED_PLAYERBOT) || defined(ENABLE_PLAYERBOTS)
+        // Bot sessions can be READY without a client. A bot retaining the orb
+        // or fighting defenders must not keep an abandoned human raid locked.
+        if (!session->HasClientSocket())
+            continue;
+#endif
+        return true;
+    }
+    return false;
+}
+
+bool instance_blackwing_lair::UpdateRazorgoreAbandonment(uint32 diff)
+{
+    const uint32 state = GetData(TYPE_RAZORGORE);
+    if (state != IN_PROGRESS && state != SPECIAL)
+    {
+        m_bRazorgoreHumanAttempt = false;
+        m_uiRazorgoreNoHumanTimer = 0;
+        return false;
+    }
+    if (HasActiveRazorgoreHuman())
+    {
+        m_bRazorgoreHumanAttempt = true;
+        m_uiRazorgoreNoHumanTimer = 0;
+        return false;
+    }
+    // Preserve automated raids that never had a participating human.
+    if (!m_bRazorgoreHumanAttempt)
+        return false;
+
+    const uint32 grace = 60 * IN_MILLISECONDS;
+    if (diff < grace - m_uiRazorgoreNoHumanTimer)
+    {
+        m_uiRazorgoreNoHumanTimer += diff;
+        return false;
+    }
+
+    sLog.outString("BWL_RAZORGORE_RECOVERY instance=%u phase=%u reason=no_connected_living_human grace_ms=%u",
+        instance->GetInstanceId(), state, grace);
+
+    // Use normal possession teardown before the existing FAIL cleanup. Do not
+    // edit charm GUIDs or bypass the instance's normal entry checks.
+    if (Creature* razorgore = GetSingleCreatureFromStorage(NPC_RAZORGORE))
+        razorgore->RemoveAurasDueToSpell(SPELL_POSSESS);
+    SetData(TYPE_RAZORGORE, FAIL);
+    return true;
+}
+
 void instance_blackwing_lair::Update(uint32 uiDiff)
 {
+    // Leave the existing 30-second reset timer intact on the failure tick.
+    if (UpdateRazorgoreAbandonment(uiDiff))
+        return;
+
     // Scepter of the Shifting Sand epic quest line
     if (m_uiScepterEpicTimer)
     {
