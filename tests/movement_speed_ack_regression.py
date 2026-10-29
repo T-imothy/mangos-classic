@@ -113,3 +113,19 @@ with tempfile.TemporaryDirectory(prefix='classic-speed-ack-') as folder:
     folder=Path(folder);(folder/'test.cpp').write_text(code)
     subprocess.run(['cl','/nologo','/EHsc','/std:c++17','test.cpp','/Fe:test.exe'],cwd=folder,check=True)
     subprocess.run([str(folder/'test.exe')],cwd=folder,check=True)
+    # Compile the actual header's conditional accessor block: the production
+    # sender also builds without either playerbot implementation enabled.
+    start=header.index('#if defined(BUILD_DEPRECATED_PLAYERBOT)',header.index('void SetSecurity('))
+    accessors=header[start:header.index('const std::string& GetLocalAddress()',start)]
+    probe='''#include <cassert>
+#include <string>
+struct Socket { std::string GetRemoteAddress() const { return "client"; } };
+struct Session { Socket* m_socket=nullptr;
+'''+accessors+'''};
+int main(){Session s;assert(!s.HasClientSocket());Socket socket;s.m_socket=&socket;assert(s.HasClientSocket());}
+'''
+    (folder/'accessors.cpp').write_text(probe)
+    for mode in ('ENABLE_PLAYERBOTS','BUILD_DEPRECATED_PLAYERBOT','NO_PLAYERBOTS'):
+        subprocess.run(['cl','/nologo','/EHsc','/std:c++17','/D'+mode,'accessors.cpp','/Fe:accessors.exe'],cwd=folder,check=True)
+        subprocess.run([str(folder/'accessors.exe')],cwd=folder,check=True)
+    print('PASS: native socket-accessor declarations with both bot modes and without playerbots')
