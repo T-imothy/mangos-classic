@@ -276,6 +276,8 @@ endif()
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
   add_test(NAME alterac_engagement COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/alterac_engagement_regression.py)
   set_tests_properties(alterac_engagement PROPERTIES TIMEOUT 120)
+  add_test(NAME alterac_objectives COMMAND ${Python3_EXECUTABLE} ${_arch4_playerbots_source}/tests/alterac_objective_regression.py)
+  set_tests_properties(alterac_objectives PROPERTIES TIMEOUT 120)
 endif()
 
 if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
