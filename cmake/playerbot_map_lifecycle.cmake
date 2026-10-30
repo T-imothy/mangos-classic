@@ -1,6 +1,9 @@
 # Keep the pinned Playerbots source immutable; compile reviewed replacements.
 # Hash checks make an upstream update require an explicit review of this fix.
 set(_lifecycle_dir "${CMAKE_BINARY_DIR}/playerbot_lifecycle")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+  "${playerbots_SOURCE_DIR}/playerbot/PlayerbotAI.cpp"
+  "${playerbots_SOURCE_DIR}/playerbot/strategy/Engine.cpp")
 file(MAKE_DIRECTORY "${_lifecycle_dir}")
 function(mantech_lifecycle_replace variable before after)
   string(FIND "${${variable}}" "${before}" location)
@@ -67,7 +70,7 @@ set_source_files_properties("${_lifecycle_dir}/Engine.cpp" TARGET_DIRECTORY play
 file(READ "${playerbots_SOURCE_DIR}/playerbot/PlayerbotAI.cpp" _lifecycle_text)
 string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
 string(SHA256 _lifecycle_hash "${_lifecycle_text}")
-if(NOT _lifecycle_hash STREQUAL "46da3ff45831d7634d5107e0714df2b7f3cf979896275dbeef9ee933fc30769c")
+if(NOT _lifecycle_hash STREQUAL "1eaf4fba01157ff49706cca123603d5b73d3f39cbf6947104652150ac0605048")
   message(FATAL_ERROR "Review map-lifecycle fix: upstream PlayerbotAI.cpp changed")
 endif()
 mantech_lifecycle_replace(_lifecycle_text [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)
