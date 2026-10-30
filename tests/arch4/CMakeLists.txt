@@ -418,6 +418,7 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
     blackwing_tank_assignment
     blackwing_support
     movement_dispatch
+    movement_path_clip
     chase_hazard_dispatch
     onyxia_native
     naxx_control_selection
