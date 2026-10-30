@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -98,10 +99,14 @@ struct boss_sapphironAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         BossAI:: Reset();
 
         m_iceboltCount = 0;
-        m_phase = PHASE_GROUND;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
 
         SetCombatMovement(true);
         SetDeathPrevention(false);
@@ -160,7 +165,7 @@ struct boss_sapphironAI : public BossAI
 
     void HandleGroundPhase()
     {
-        m_phase = PHASE_GROUND;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
         m_creature->SetSpellList(SPELLSET_GROUND);
         SetDeathPrevention(false);
         SetCombatMovement(true);
@@ -200,7 +205,7 @@ struct boss_sapphironAI : public BossAI
             {
                 if (m_creature->GetHealthPercent() > 10.f)
                 {
-                    m_phase = PHASE_LIFT_OFF;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_LIFT_OFF);
                     SetDeathPrevention(true);
                     m_creature->InterruptNonMeleeSpells(false);
                     SetCombatMovement(false);

@@ -34,6 +34,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 option(MANTECH_DEV_DIAGNOSTICS "Bounded DEV runtime diagnostics" OFF)
+option(MANTECH_RAID_LAB "Isolated Classic raid scenario runner and telemetry (never deploy)" OFF)
 
 
 # Define here name of the binaries
@@ -435,6 +436,10 @@ if(MANTECH_DEV_DIAGNOSTICS)
 endif()
 
 include(cmake/Arch4Allocator.cmake)
+
+if(MANTECH_RAID_LAB)
+  add_compile_definitions(MANTECH_RAID_LAB GenerateBotTests)
+endif()
 
 if(BUILD_GAME_SERVER OR BUILD_LOGIN_SERVER OR BUILD_EXTRACTORS)
   add_subdirectory(src)

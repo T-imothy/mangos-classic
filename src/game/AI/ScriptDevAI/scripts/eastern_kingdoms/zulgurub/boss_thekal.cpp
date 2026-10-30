@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -79,12 +80,16 @@ struct boss_thekalBaseAI : public CombatAI
     boss_thekalBaseAI(Creature* creature, uint32 actions) : CombatAI(creature, actions),
         m_instance(static_cast<ScriptedInstance*>(creature->GetInstanceData()))
     {
-        m_uiPhase = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_NORMAL);
         SetDeathPrevention(true);
     }
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
         SetCombatMovement(true);
@@ -117,7 +122,7 @@ struct boss_thekalBaseAI : public CombatAI
         SetCombatMovement(false);
         SetCombatScriptStatus(true);
 
-        m_uiPhase = PHASE_FAKE_DEATH;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_FAKE_DEATH);
 
         OnFakeingDeath();
     }
@@ -133,7 +138,7 @@ struct boss_thekalBaseAI : public CombatAI
             return;
 
         m_creature->SetHealth(m_creature->GetMaxHealth());
-        m_uiPhase = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_NORMAL);
 
         DoResetThreat();
         Reset();
@@ -173,7 +178,7 @@ struct boss_thekalAI : public boss_thekalBaseAI
             // resurrect him in any case
             DoCastSpellIfCan(nullptr, SPELL_RESURRECT);
 
-            m_uiPhase = PHASE_WAITING;
+            RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_WAITING);
             if (m_instance)
             {
                 CanPreventAddsResurrect();
@@ -183,7 +188,7 @@ struct boss_thekalAI : public boss_thekalBaseAI
         AddCustomAction(THEKAL_RESS_PHASE_2_DELAY, true, [&]()
         {
             DoCastSpellIfCan(nullptr, SPELL_TIGER_FORM);
-            m_uiPhase = PHASE_TIGER;
+            RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_TIGER);
             SetDeathPrevention(false);
             SetCombatScriptStatus(false);
             SetMeleeEnabled(true);
@@ -196,9 +201,13 @@ struct boss_thekalAI : public boss_thekalBaseAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_thekalBaseAI::Reset();
 
-        m_uiPhase               = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_NORMAL);
 
         // remove fake death
         Revive(true);
@@ -297,6 +306,10 @@ struct boss_thekalAI : public boss_thekalBaseAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         CombatAI::EnterEvadeMode();
         if (Creature* lorkhan = m_instance->GetSingleCreatureFromStorage(NPC_LORKHAN))
             lorkhan->AI()->EnterEvadeMode();
@@ -337,9 +350,13 @@ struct mob_zealot_lorkhanAI : public boss_thekalBaseAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_thekalBaseAI::Reset();
 
-        m_uiPhase = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_NORMAL);
 
         if (m_instance)
             m_instance->SetData(TYPE_LORKHAN, NOT_STARTED);
@@ -388,6 +405,10 @@ struct mob_zealot_zathAI : public boss_thekalBaseAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_thekalBaseAI::Reset();
 
         if (m_instance)

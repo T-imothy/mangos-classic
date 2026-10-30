@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -172,6 +173,10 @@ struct npc_general_andorovAI : public CombatAI, private DialogueHelper
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         if (!m_instance)
             return;
 
@@ -330,6 +335,10 @@ struct npc_kaldorei_eliteAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         if (!m_instance)
             return;
 

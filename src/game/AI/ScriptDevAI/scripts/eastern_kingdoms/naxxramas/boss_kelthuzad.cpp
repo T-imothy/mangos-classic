@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -173,10 +174,14 @@ struct boss_kelthuzadAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         BossAI::Reset();
         m_summonTicks = 0;
 
-        m_phase                = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_NORMAL);
 
         m_creature->SetFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER | UNIT_FLAG_UNINTERACTIBLE);
         SetMeleeEnabled(false);
@@ -184,6 +189,10 @@ struct boss_kelthuzadAI : public BossAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         DespawnIntroCreatures();
 
         m_creature->InterruptNonMeleeSpells(false);
@@ -363,7 +372,7 @@ struct boss_kelthuzadAI : public BossAI
 
     void StartPhase2()
     {
-        m_phase = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_NORMAL);
 
         m_creature->InterruptNonMeleeSpells(false);
         m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IMMUNE_TO_PLAYER | UNIT_FLAG_UNINTERACTIBLE);
@@ -474,6 +483,10 @@ struct npc_icecrown_guardianAI : public ScriptedAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         m_victimGuid.Clear();
         m_checkCurrentVictimTimer = 2 * IN_MILLISECONDS;    // Check every 2 seconds that we still have the same target
 
@@ -487,6 +500,10 @@ struct npc_icecrown_guardianAI : public ScriptedAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         m_creature->RemoveAurasDueToSpell(SPELL_BLOOD_TAP);
 
         ScriptedAI::EnterEvadeMode();

@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 #include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
@@ -813,6 +814,9 @@ void Map::GetPlayerbotAIObjectStats(uint64& aiObjects, uint64& strategies, uint6
 
 void Map::Update(const uint32& t_diff)
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Snapshot(this);
+#endif
     MANTECH_DIAG_CONTEXT(GetId(),GetInstanceId());
     MANTECH_DIAG_SCOPE(Map,1,ManTech::Diag::MapLabel());
     auto const channelCostBefore = ManTech::channelCost;

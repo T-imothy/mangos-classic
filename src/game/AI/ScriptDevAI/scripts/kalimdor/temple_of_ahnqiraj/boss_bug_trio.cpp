@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,6 +89,10 @@ struct boss_silithidRoyaltyAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
         SetDeathPrevention(true);
     }
@@ -203,6 +208,10 @@ struct boss_kriAI : public boss_silithidRoyaltyAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_silithidRoyaltyAI::Reset();
         m_deathAbility     = SPELL_SUMMON_CLOUD;
 
@@ -254,6 +263,10 @@ struct boss_vemAI : public boss_silithidRoyaltyAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_silithidRoyaltyAI::Reset();
         m_deathAbility     = SPELL_VENGEANCE;
 
@@ -310,6 +323,10 @@ struct boss_yaujAI : public boss_silithidRoyaltyAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         boss_silithidRoyaltyAI::Reset();
         m_deathAbility    = SPELL_SUMMON_BROOD;
 

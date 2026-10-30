@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 #include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
@@ -205,6 +206,10 @@ void Creature::AddToWorld()
     }
 
     Unit::AddToWorld();
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "creature_added", GetSpawnerGuid().GetRawValue());
+#endif
+
 
     // Make active if required
     if (sWorld.isForceLoadMap(GetMapId()) || (GetCreatureInfo()->ExtraFlags & CREATURE_EXTRA_FLAG_ACTIVE))
@@ -220,6 +225,10 @@ void Creature::AddToWorld()
 
 void Creature::RemoveFromWorld()
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "creature_removed");
+#endif
+
     ///- Remove the creature from the accessor
     if (IsInWorld())
     {
@@ -1952,6 +1961,10 @@ void Creature::ApplyDynamicRespawnDelay(uint32& delay)
 
 void Creature::SetDeathState(DeathState s)
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "death_state", uint64(s));
+#endif
+
     if (s == JUST_DIED)
     {
         if (!m_respawnOverriden)
@@ -2039,6 +2052,10 @@ void Creature::SetDeathState(DeathState s)
 
 void Creature::Respawn()
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "respawn_requested");
+#endif
+
     RemoveCorpse();
     if (!IsInWorld())                                       // Could be removed as part of a pool (in which case respawn-time is handled with pool-system)
         return;

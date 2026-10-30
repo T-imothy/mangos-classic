@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -106,6 +107,10 @@ struct boss_jeklikAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
         m_creature->SetSpellList(SPELL_LIST_PHASE_1);
@@ -164,6 +169,10 @@ struct boss_jeklikAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         // Override MMaps, and teleport to original position
         float fX, fY, fZ, fO;
         m_creature->GetRespawnCoord(fX, fY, fZ, &fO);
@@ -270,6 +279,10 @@ struct npc_gurubashi_bat_riderAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
         m_bHasDoneConcoction = false;

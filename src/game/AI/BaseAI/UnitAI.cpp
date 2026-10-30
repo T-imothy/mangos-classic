@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -160,6 +161,12 @@ CanCastResult UnitAI::CanCastSpell(Unit* target, const SpellEntry* spellInfo, bo
 CanCastResult UnitAI::DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 castFlags)
 {
     Unit* caster = m_unit;
+    auto recordResult = [&](CanCastResult result) {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Count(m_unit, "cast_check", spellId, uint32(result), target ? target->GetObjectGuid().GetRawValue() : 0);
+#endif
+        return result;
+    };
 
     if (target)
     {
@@ -170,10 +177,10 @@ CanCastResult UnitAI::DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 cast
             caster = target;
     }
     else if (castFlags & (CAST_FORCE_TARGET_SELF | CAST_SWITCH_CASTER_TARGET))
-        return CAST_FAIL_OTHER;
+        return recordResult(CAST_FAIL_OTHER);
 
     if (GetAIOrder() == ORDER_EVADE && !(castFlags & CAST_TRIGGERED))
-        return CAST_FAIL_EVADE;
+        return recordResult(CAST_FAIL_EVADE);
 
     // Allowed to cast only if not casting (unless we interrupt ourself) or if spell is triggered
     if (!caster->IsNonMeleeSpellCasted(false) || (castFlags & (CAST_TRIGGERED | CAST_INTERRUPT_PREVIOUS)))
@@ -186,10 +193,10 @@ CanCastResult UnitAI::DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 cast
                 if (!target)
                 {
                     if (caster->HasAura(spellId))
-                        return CAST_FAIL_TARGET_AURA;
+                        return recordResult(CAST_FAIL_TARGET_AURA);
                 }
                 else if (target->HasAura(spellId))
-                    return CAST_FAIL_TARGET_AURA;
+                    return recordResult(CAST_FAIL_TARGET_AURA);
             }
 
             // Check if cannot cast spell
@@ -198,7 +205,7 @@ CanCastResult UnitAI::DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 cast
                 CanCastResult castResult = CanCastSpell(target, spellInfo, (castFlags & CAST_TRIGGERED) != 0);
 
                 if (castResult != CAST_OK)
-                    return castResult;
+                    return recordResult(castResult);
             }
 
             // Interrupt any previous spell
@@ -270,14 +277,14 @@ CanCastResult UnitAI::DoCastSpellIfCan(Unit* target, uint32 spellId, uint32 cast
 
                 if (canCastResult == CAST_FAIL_OTHER)
                     sLog.outBasic("DoCastSpellIfCan by %s attempt to cast spell %u but spell failed due to unknown result %u : %s.", m_unit->GetObjectGuid().GetString().c_str(), spellId, result, GetSpellCastResultString(result));
-                return HandleSpellCastResult(canCastResult, spellInfo);
+                return recordResult(HandleSpellCastResult(canCastResult, spellInfo));
             }
-            return HandleSpellCastResult(CAST_OK, spellInfo);
+            return recordResult(HandleSpellCastResult(CAST_OK, spellInfo));
         }
         sLog.outErrorDb("DoCastSpellIfCan by %s attempt to cast spell %u but spell does not exist.", m_unit->GetGuidStr().c_str(), spellId);
-        return CAST_FAIL_OTHER;
+        return recordResult(CAST_FAIL_OTHER);
     }
-    return CAST_FAIL_IS_CASTING;
+    return recordResult(CAST_FAIL_IS_CASTING);
 }
 
 void UnitAI::AttackStart(Unit* who)
@@ -943,7 +950,12 @@ void UnitAI::ExecuteActions()
             return;
 
         if (GetActionReadyStatus(i))
+        {
+#ifdef MANTECH_RAID_LAB
+            RaidLab::Count(m_unit, "execute_action", i);
+#endif
             ExecuteAction(i);
+        }
     }
 
     if (m_teleportUnreachable)

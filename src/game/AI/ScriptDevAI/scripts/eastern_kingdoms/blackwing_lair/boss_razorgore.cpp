@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -79,6 +80,10 @@ struct boss_razorgoreAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
         SetDeathPrevention(true);
 
@@ -157,6 +162,10 @@ struct npc_blackwing_orbAI : public ScriptedAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         m_uiIntroVisualTimer = 4000;
     }
 

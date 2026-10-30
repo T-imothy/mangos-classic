@@ -20,6 +20,9 @@
 #define _PLAYER_H
 
 #include "Common.h"
+#ifdef MANTECH_RAID_LAB
+#include "World/RaidLab.h"
+#endif
 #include "Entities/ItemPrototype.h"
 #include "Entities/Unit.h"
 #include "Entities/Item.h"
@@ -2191,7 +2194,12 @@ class Player : public Unit
         void RemovePlayerbotMgr();
         PlayerbotMgr* GetPlayerbotMgr() const { return m_playerbotMgr.get(); }
         void SetBotDeathTimer() { m_deathTimer = 0; }
-        bool isRealPlayer() const { return m_session && (m_session->GetRemoteAddress() != "disconnected/bot"); }
+        bool isRealPlayer() const {
+#ifdef MANTECH_RAID_LAB
+            if (RaidLab::Controlled(const_cast<Player*>(this))) return true;
+#endif
+            return m_session && (m_session->GetRemoteAddress() != "disconnected/bot");
+        }
 #endif
 
         void SendLootError(ObjectGuid guid, LootError error) const;

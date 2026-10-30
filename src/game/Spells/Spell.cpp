@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 #include "Memory/EntityLedger.h"
 #include "Util/DevDiagnostics.h"
 /*
@@ -3799,6 +3800,9 @@ void Spell::finish(bool ok)
     if (m_spellState == SPELL_STATE_FINISHED)
         return;
 
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Cast(m_caster, m_spellInfo->Id, m_targets.getUnitTargetGuid().GetRawValue(), "finish", ok);
+#endif
     bool channeledChannel = m_spellState == SPELL_STATE_CHANNELING;
 
     m_spellState = SPELL_STATE_FINISHED;
@@ -3970,6 +3974,9 @@ void Spell::SendCastResult(Player const* caster, SpellEntry const* spellInfo, Sp
 
 void Spell::SendSpellStart() const
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Cast(m_caster, m_spellInfo->Id, m_targets.getUnitTargetGuid().GetRawValue(), "start", true);
+#endif
     if (!IsNeedSendToClient())
         return;
 
@@ -4007,6 +4014,9 @@ void Spell::SendSpellStart() const
 
 void Spell::SendSpellGo()
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Cast(m_caster, m_spellInfo->Id, m_targets.getUnitTargetGuid().GetRawValue(), "go", true);
+#endif
     // not send invisible spell casting
     if (!IsNeedSendToClient())
         return;

@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,6 +89,10 @@ struct boss_anubrekhanAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         BossAI::Reset();
 
         DoCastSpellIfCan(nullptr, SPELL_DOUBLE_ATTACK, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
@@ -115,6 +120,10 @@ struct boss_anubrekhanAI : public BossAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         // We despawn the guardians before entering evade mode to prevent despawning also the static adds that are linked to respawn on evade
         DoCastSpellIfCan(nullptr, SPELL_DESPAWN_GUARDS, CAST_TRIGGERED);
 

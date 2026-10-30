@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -141,8 +142,12 @@ struct boss_viscidusAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
-        m_phase    = PHASE_NORMAL;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_NORMAL);
         m_hitCount = 0;
         m_aliveGlobs = 0;
 
@@ -160,6 +165,10 @@ struct boss_viscidusAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         if (m_instance)
             m_instance->SetData(TYPE_VISCIDUS, FAIL);
 
@@ -284,7 +293,7 @@ struct boss_viscidusAI : public CombatAI
             default:
                 return;
         }
-        m_phase = phase;
+        RAID_LAB_PHASE(m_creature, m_phase, phase);
     }
 
     void IncreaseHitCount()
@@ -334,7 +343,7 @@ struct boss_viscidusAI : public CombatAI
                 return;
 
             // reset phase if not already exploded
-            m_phase = PHASE_NORMAL;
+            RAID_LAB_PHASE(m_creature, m_phase, PHASE_NORMAL);
             m_hitCount = 0;
         }
         else if (eventType == AI_EVENT_CUSTOM_B)

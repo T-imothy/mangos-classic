@@ -1,4 +1,5 @@
 #include "Util/DevDiagnosticsService.h"
+#include "World/RaidLab.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -215,6 +216,9 @@ World::~World()
 void World::CleanupsBeforeStop()
 {
 #ifdef ENABLE_PLAYERBOTS
+#ifdef MANTECH_RAID_LAB
+    RaidLab::StopAll();
+#endif
     { LifecyclePhase phase("shutdown.bot_logout"); sRandomPlayerbotMgr.LogoutAllBots(); }
 #endif
     { LifecyclePhase phase("shutdown.player_save"); KickAll(true); }

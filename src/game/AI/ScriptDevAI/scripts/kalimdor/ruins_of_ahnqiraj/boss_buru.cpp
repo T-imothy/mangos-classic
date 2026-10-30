@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -88,8 +89,12 @@ struct boss_buruAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
-        m_uiPhase = PHASE_EGG;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_EGG);
         m_transitionStep = 0;
         SetCombatMovement(true);
         SetCombatScriptStatus(false);
@@ -173,7 +178,7 @@ struct boss_buruAI : public CombatAI
                 if (m_creature->GetHealthPercent() < 20.0f)
                 {
                     SetActionReadyStatus(action, false);
-                    m_uiPhase = PHASE_TRANSFORM;
+                    RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_TRANSFORM);
                     DisableCombatAction(BURU_DISMEMBER);
                     SetActionReadyStatus(BURU_NEW_TARGET, false);
                     DisableCombatAction(BURU_GATHERING_SPEED);
@@ -242,6 +247,10 @@ struct npc_buru_eggAI : public Scripted_NoMovementAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         SetCombatMovement(false);
         SetReactState(REACT_PASSIVE);
     }

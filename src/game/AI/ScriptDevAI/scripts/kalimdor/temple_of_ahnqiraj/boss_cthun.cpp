@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -124,6 +125,10 @@ struct boss_eye_of_cthunAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
         SetMeleeEnabled(false);
@@ -165,6 +170,10 @@ struct boss_eye_of_cthunAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         // Despawn all tentacles and portals
         DoCastSpellIfCan(nullptr, SPELL_DESPAWN_TENTACLES, TRIGGERED_OLD_TRIGGERED);
 
@@ -277,6 +286,10 @@ struct boss_cthunAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
         m_fleshTentaclesKilled    = 0;
@@ -309,6 +322,10 @@ struct boss_cthunAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         // Kill any player from the stomach on evade - this is becuase C'thun cannot be soloed.
         for (auto guid : m_playersInStomachList)
         {
@@ -496,6 +513,10 @@ struct npc_giant_claw_tentacleAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         m_isLookingForMeleeTarget = false;
 
         m_creature->SetImmobilizedState(true);

@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -100,7 +101,7 @@ struct boss_gothikAI : public BossAI
                 case 3:
                 {
                     DoBroadcastText(SAY_SPEECH_4, m_creature);
-                    m_phase = PHASE_BALCONY;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_BALCONY);
                     break;
                 }
             }
@@ -118,10 +119,14 @@ struct boss_gothikAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         BossAI::Reset();
         m_creature->RemoveAurasDueToSpell(SPELL_IMMUNE_ALL);
         // Remove immunity
-        m_phase = PHASE_SPEECH;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_SPEECH);
         m_speechStep = 0;
 
         m_teleportCount = 0;
@@ -139,7 +144,7 @@ struct boss_gothikAI : public BossAI
     void HandleGroundPhase()
     {
         m_creature->CastSpell(nullptr, SPELL_TELEPORT_RIGHT, TRIGGERED_OLD_TRIGGERED);
-        m_phase = m_instance ? PHASE_TELEPORTING : PHASE_STOP_TELEPORTING;
+        RAID_LAB_PHASE(m_creature, m_phase, m_instance ? PHASE_TELEPORTING : PHASE_STOP_TELEPORTING);
 
         DoBroadcastText(SAY_TELEPORT, m_creature);
 
@@ -213,6 +218,10 @@ struct boss_gothikAI : public BossAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         BossAI::EnterEvadeMode();
         DoCastSpellIfCan(nullptr, SPELL_RESET_GOTHIK_EVENT, CAST_TRIGGERED); // Prevent more adds from spawing
 
@@ -304,7 +313,7 @@ struct boss_gothikAI : public BossAI
             {
                 if (m_teleportCount >= 4 || m_creature->GetHealthPercent() <= 30.0f)
                 {
-                    m_phase = PHASE_STOP_TELEPORTING;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_STOP_TELEPORTING);
                     HandleOpenGates();
                     DisableCombatAction(action);
                 }

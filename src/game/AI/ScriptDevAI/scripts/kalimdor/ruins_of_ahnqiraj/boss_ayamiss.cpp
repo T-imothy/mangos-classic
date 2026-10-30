@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -117,8 +118,12 @@ struct boss_ayamissAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
-        m_phase = PHASE_AIR;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_AIR);
 
         SetCombatMovement(false);
         SetMeleeEnabled(false);
@@ -129,6 +134,10 @@ struct boss_ayamissAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         m_creature->SetImmobilizedState(false);
         CombatAI::EnterEvadeMode();
     }
@@ -214,7 +223,7 @@ struct boss_ayamissAI : public CombatAI
             {
                 if (m_creature->GetHealthPercent() <= 70.0f)
                 {
-                    m_phase = PHASE_GROUND;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
                     m_creature->SetImmobilizedState(false);
                     SetMeleeEnabled(true);
                     m_creature->SetLevitate(false);
@@ -319,7 +328,11 @@ struct npc_hive_zara_larvaAI : public ScriptedAI
 
     instance_ruins_of_ahnqiraj* m_instance;
 
-    void Reset() override { }
+    void Reset() override {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+ }
 
     void MoveInLineOfSight(Unit* who) override
     {

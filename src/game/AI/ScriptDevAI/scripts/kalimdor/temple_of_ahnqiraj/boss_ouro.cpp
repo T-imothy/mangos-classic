@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -92,6 +93,10 @@ struct npc_ouro_triggerAI : public ScriptedAI // needs to be before Ouro for com
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
 
     }
 
@@ -128,6 +133,10 @@ struct boss_ouroAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
         SetCombatMovement(false);
         SetMeleeEnabled(false);
@@ -322,6 +331,10 @@ struct npc_ouro_spawnerAI : public Scripted_NoMovementAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         m_bHasSummoned = false;
 
         DoCastSpellIfCan(nullptr, SPELL_DIRTMOUND_PASSIVE, CAST_AURA_NOT_PRESENT | CAST_TRIGGERED);
@@ -359,11 +372,19 @@ struct npc_ouro_moundAI : public ScriptedAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         DoCastSpellIfCan(nullptr, SPELL_DIRTMOUND_PASSIVE, CAST_AURA_NOT_PRESENT | CAST_TRIGGERED);
     }
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         if (m_creature->GetInstanceData() && m_creature->HasAura(SPELL_SUMMON_OURO_TRIGG))
             static_cast<ScriptedInstance*>(m_creature->GetInstanceData())->SetData(TYPE_OURO, FAIL);
         ScriptedAI::EnterEvadeMode();
@@ -428,6 +449,10 @@ struct OuroScarab : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         ScriptedAI::EnterEvadeMode();
         m_creature->ForcedDespawn(1000); // despawn on wipe
     }

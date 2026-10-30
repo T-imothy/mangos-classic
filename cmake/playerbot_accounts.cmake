@@ -51,7 +51,7 @@ set_source_files_properties("${_account_dir}/RandomPlayerbotFactory.cpp" TARGET_
 file(READ "${playerbots_SOURCE_DIR}/playerbot/RandomPlayerbotMgr.cpp" _account_text)
 string(REPLACE "\r\n" "\n" _account_text "${_account_text}")
 string(SHA256 _account_hash "${_account_text}")
-if(NOT _account_hash STREQUAL "c870795318b6e9a8f2b5ebe5cc03ab6aa8bc888f240178b28c08467c1f1f072a")
+if(NOT _account_hash STREQUAL "c6edf2e0bc9835df8dd84df1df4a8afe606393bb75e33bdfe1be6627f8751a76")
   message(FATAL_ERROR "Review account index: pinned RandomPlayerbotMgr.cpp changed")
 endif()
 string(REPLACE [==[sPlayerbotAIConfig.randomBotAccounts.push_back(accountId);]==] [==[ManTech::PlayerbotAccountMembership().Append(sPlayerbotAIConfig.randomBotAccounts, accountId);]==] _account_text "${_account_text}")

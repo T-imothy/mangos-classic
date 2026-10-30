@@ -223,6 +223,19 @@ int main(int argc, char* argv[])
 
     ///- and run the 'Master'
     /// \todo Why do we need this 'Master'? Can't all of this be in the Main as for Realmd?
+#ifdef MANTECH_RAID_LAB
+    // This executable must never open a live realm database, even if copied by mistake.
+    if (!sConfig.GetBoolDefault("RaidLab.Enabled", false) ||
+        sConfig.GetStringDefault("BindIP") != "127.0.0.1")
+        return 1;
+    for (auto key : {"WorldDatabaseInfo", "CharacterDatabaseInfo", "LoginDatabaseInfo", "LogsDatabaseInfo"})
+    {
+        auto value = sConfig.GetStringDefault(key);
+        if (value.find("127.0.0.1;13307;") != 0 || value.find(";bg_lab_") == std::string::npos)
+            return 1;
+    }
+    sLog.outString("RAID LAB BUILD: isolated test databases only; do not deploy to a live realm.");
+#endif
     return sMaster.Run();
 
     // at sMaster return function exist with codes

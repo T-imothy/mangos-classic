@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -107,11 +108,15 @@ struct boss_ragnarosAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
         m_uiAddCount = 0;
         m_sons.clear();
         m_sonsSummoned = false;
-        m_phase = PHASE_EMERGED;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_EMERGED);
         m_rangeCheckState       = -1;
 
         m_bHasYelledMagmaBurst = false;
@@ -146,6 +151,10 @@ struct boss_ragnarosAI : public CombatAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         if (m_instance)
             m_instance->SetData(TYPE_RAGNAROS, FAIL);
 
@@ -254,7 +263,7 @@ struct boss_ragnarosAI : public CombatAI
                 m_sons.clear();
                 m_uiAddCount = 0;
                 m_sonsSummoned = false;
-                m_phase = PHASE_SUBMERGING;
+                RAID_LAB_PHASE(m_creature, m_phase, PHASE_SUBMERGING);
                 DoCastSpellIfCan(nullptr, SPELL_SUMMON_SONS_FLAME);
 
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 3000);
@@ -269,7 +278,7 @@ struct boss_ragnarosAI : public CombatAI
             {
                 DoCastSpellIfCan(nullptr, SPELL_RAGNA_SUBMERGE, CAST_TRIGGERED);
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, m_sonsSummoned && !m_uiAddCount ? 1000 : 90 * IN_MILLISECONDS);
-                m_phase = PHASE_SUBMERGED;
+                RAID_LAB_PHASE(m_creature, m_phase, PHASE_SUBMERGED);
                 break;
             }
             case PHASE_SUBMERGED:
@@ -279,7 +288,7 @@ struct boss_ragnarosAI : public CombatAI
                 m_creature->RemoveAurasDueToSpell(SPELL_SUBMERGE_EFFECT);
                 m_creature->RemoveAurasDueToSpell(SPELL_RAGNA_SUBMERGE_VISUAL);
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 500);
-                m_phase = PHASE_EMERGING;
+                RAID_LAB_PHASE(m_creature, m_phase, PHASE_EMERGING);
                 break;
             }
             case PHASE_EMERGING:
@@ -287,7 +296,7 @@ struct boss_ragnarosAI : public CombatAI
                 m_creature->SetStandState(UNIT_STAND_STATE_STAND);
                 DoCastSpellIfCan(m_creature, SPELL_RAGNA_EMERGE);
                 m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
-                m_phase = PHASE_EMERGED;
+                RAID_LAB_PHASE(m_creature, m_phase, PHASE_EMERGED);
                 ResetCombatAction(RAGNAROS_PHASE_TRANSITION, 3 * MINUTE * IN_MILLISECONDS);
                 ResetCombatAction(RAGNAROS_WRATH_OF_RAGNAROS, 20000);
                 ResetCombatAction(RAGNAROS_MIGHT_OF_RAGNAROS, urand(11000, 30000));

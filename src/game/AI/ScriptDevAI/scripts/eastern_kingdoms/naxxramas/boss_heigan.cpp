@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -101,9 +102,13 @@ struct boss_heiganAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
 
-        m_phase = PHASE_GROUND;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
 
         StopEruptions();
     }
@@ -132,6 +137,10 @@ struct boss_heiganAI : public BossAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         ScriptedAI::EnterEvadeMode();
 
         if (m_instance)
@@ -149,7 +158,7 @@ struct boss_heiganAI : public BossAI
         SetCombatMovement(true, true);
         SetMeleeEnabled(true);
         StopEruptions();
-        m_phase = PHASE_GROUND;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
         ResetTimer(HEIGAN_ERUPTIONS, 100u);
         ResetCombatAction(HEIGAN_PHASE_PLATFORM, 90u * IN_MILLISECONDS);
     }
@@ -163,7 +172,7 @@ struct boss_heiganAI : public BossAI
         if (DoCastSpellIfCan(nullptr, SPELL_TELEPORT_SELF) == CAST_OK)
         {
             StopEruptions();
-            m_phase = PHASE_PLATFORM;
+            RAID_LAB_PHASE(m_creature, m_phase, PHASE_PLATFORM);
             ResetTimer(HEIGAN_ERUPTIONS, 3000u); // Small delay to let enough time for players to reach the first safe zone
             ResetTimer(HEIGAN_CHANNELING, 100u);
         }
@@ -252,6 +261,10 @@ struct npc_diseased_maggotAI : public ScriptedAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         m_resetCheckTimer = 3 * IN_MILLISECONDS;
     }
 

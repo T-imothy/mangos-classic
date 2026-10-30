@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -138,9 +139,13 @@ struct boss_nothAI : public BossAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         BossAI::Reset();
 
-        m_phase = PHASE_GROUND;
+        RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
         m_phaseSub = PHASE_GROUND;
         m_wavesNpcsCount = 0;
         m_subWavesCount = 0;
@@ -174,6 +179,10 @@ struct boss_nothAI : public BossAI
 
     void EnterEvadeMode() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:EnterEvadeMode");
+#endif
+
         DoCastSpellIfCan(nullptr, SPELL_DESPAWN_SUMMONS, CAST_TRIGGERED);
         BossAI::EnterEvadeMode();
     }
@@ -245,7 +254,7 @@ struct boss_nothAI : public BossAI
                         case PHASE_SKELETON_2: ResetCombatAction(NOTH_PHASE_GROUND, 97u * IN_MILLISECONDS);  break;
                         case PHASE_SKELETON_3: ResetCombatAction(NOTH_PHASE_GROUND, 120u * IN_MILLISECONDS); break;
                     }
-                    m_phase = PHASE_BALCONY;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_BALCONY);
 
                     ResetCombatAction(NOTH_SUMMON, 10u * IN_MILLISECONDS); // Summon first wave 10 seconds after teleport
 
@@ -270,7 +279,7 @@ struct boss_nothAI : public BossAI
                         case PHASE_SKELETON_2: ResetTimer(NOTH_PHASE_GROUND, 180u * IN_MILLISECONDS); break;
                         case PHASE_SKELETON_3: DisableTimer(NOTH_PHASE_GROUND); break;
                     }
-                    m_phase = PHASE_GROUND;
+                    RAID_LAB_PHASE(m_creature, m_phase, PHASE_GROUND);
                     DisableCombatAction(action);
                     AddInitialCooldowns();
                 }

@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
  *
@@ -169,6 +170,10 @@ void CombatManager::SetEvadeState(EvadeState state)
         m_owner->AI()->SetAIOrder(ORDER_NONE);
     else if (state == EVADE_HOME)
         m_owner->AI()->SetAIOrder(ORDER_EVADE);
+
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(m_owner, "evade_state", uint64(state), uint64(m_evadeState));
+#endif
     m_evadeState = state;
 
     // Do not propagate during charm

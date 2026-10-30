@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 /* This file is part of the ScriptDev2 Project. See AUTHORS file for Copyright information
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -183,11 +184,15 @@ struct boss_onyxiaAI : public CombatAI
 
     void Reset() override
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "script:Reset");
+#endif
+
         CombatAI::Reset();
         if (!IsCombatMovement())
             SetCombatMovement(true);
 
-        m_uiPhase = PHASE_START;
+        RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_START);
 
         m_uiMovePoint = POINT_ID_NORTH;                     // First point reached by the flying Onyxia
 
@@ -280,7 +285,7 @@ struct boss_onyxiaAI : public CombatAI
                 m_creature->HandleEmote(EMOTE_ONESHOT_LIFTOFF);
                 break;
             case POINT_ID_INIT_NORTH:                           // Start PHASE_BREATH
-                m_uiPhase = PHASE_BREATH;
+                RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_BREATH);
                 m_creature->CastSpell(nullptr, SPELL_DRAGON_HOVER, TRIGGERED_OLD_TRIGGERED);
                 m_creature->CastSpell(nullptr, SPELL_PACIFY_SELF, TRIGGERED_OLD_TRIGGERED);
                 SetCombatScriptStatus(false);
@@ -330,7 +335,7 @@ struct boss_onyxiaAI : public CombatAI
         switch (m_uiPhase)
         {
             case PHASE_TO_LIFTOFF:
-                m_uiPhase = PHASE_BREATH_PRE;
+                RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_BREATH_PRE);
                 // Initial Onyxian Whelps spawn
                 ResetTimer(ONYXIA_SUMMON_WHELPS, 3000);
                 if (m_instance)
@@ -338,7 +343,7 @@ struct boss_onyxiaAI : public CombatAI
                 m_creature->GetMotionMaster()->MovePoint(POINT_ID_INIT_NORTH, aMoveData[POINT_ID_NORTH].fX, aMoveData[POINT_ID_NORTH].fY, aMoveData[POINT_ID_NORTH].fZ, FORCED_MOVEMENT_FLIGHT);
                 break;
             case PHASE_BREATH_POST:
-                m_uiPhase = PHASE_END;
+                RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_END);
                 m_creature->SetTarget(m_creature->GetVictim());
                 SetCombatMovement(true, true);
                 SetMeleeEnabled(true);
@@ -397,7 +402,7 @@ struct boss_onyxiaAI : public CombatAI
                 if (m_creature->GetHealthPercent() > 65.0f)
                     return;
 
-                m_uiPhase = PHASE_TO_LIFTOFF;
+                RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_TO_LIFTOFF);
                 DoScriptText(SAY_PHASE_2_TRANS, m_creature);
                 SetCombatMovement(false);
                 SetMeleeEnabled(false);
@@ -413,7 +418,7 @@ struct boss_onyxiaAI : public CombatAI
                 if (m_creature->GetHealthPercent() > 40.0f)
                     return;
 
-                m_uiPhase = PHASE_BREATH_POST;
+                RAID_LAB_PHASE(m_creature, m_uiPhase, PHASE_BREATH_POST);
                 DoScriptText(SAY_PHASE_3_TRANS, m_creature);
                 DisableTimer(ONYXIA_SUMMON_WHELPS);
 

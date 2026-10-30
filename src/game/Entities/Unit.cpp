@@ -1,3 +1,4 @@
+#include "World/RaidLab.h"
 #include "Util/DevDiagnostics.h"
 /*
  * This file is part of the CMaNGOS Project. See AUTHORS file for Copyright information
@@ -1013,6 +1014,11 @@ uint32 Unit::DealDamage(Unit* dealer, Unit* victim, uint32 damage, CleanDamage c
     if (victim->IsPreventingDeath() && damagetype != INSTAKILL && health <= damage)
         damage = health - 1;
 
+#ifdef MANTECH_RAID_LAB
+    // Record the resolved damage handed to Kill/HandleDamageDealt. A lethal
+    // amount is not itself proof of death (e.g. Spirit of Redemption).
+    RaidLab::Impact(dealer, victim, "damage", spellInfo ? spellInfo->Id : 0, damage, health, -1);
+#endif
     if (health <= damage)
         Kill(dealer, victim, damagetype, spellInfo, durabilityLoss, duel_hasEnded);
     else                                                    // if (health <= damage)
@@ -4901,6 +4907,10 @@ bool Unit::AddSpellAuraHolder(SpellAuraHolder* holder)
     holder->_AddSpellAuraHolder();
     holder->SetCreationDelayFlag();
     m_spellAuraHolders.insert(SpellAuraHolderMap::value_type(holder->GetId(), holder));
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "aura_added", holder->GetId(), holder->GetCasterGuid().GetRawValue());
+#endif
+
 
     for (int32 i = 0; i < MAX_EFFECT_INDEX; ++i)
         if (Aura* aur = holder->GetAuraByEffectIndex(SpellEffectIndex(i)))
@@ -5379,6 +5389,10 @@ void Unit::RemoveNotOwnTrackedTargetAuras()
 
 void Unit::RemoveSpellAuraHolder(SpellAuraHolder* holder, AuraRemoveMode mode)
 {
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Event(this, "aura_removed", holder->GetId(), uint64(mode));
+#endif
+
     MANGOS_ASSERT(!holder->IsDeleted());
 
     // Statue unsummoned at holder remove
@@ -6944,7 +6958,13 @@ void Unit::UnsummonAllTotems() const
 
 int32 Unit::DealHeal(Unit* pVictim, uint32 addhealth, SpellEntry const* spellInfo, bool critical)
 {
+#ifdef MANTECH_RAID_LAB
+    uint32 const raidLabHealthBefore = pVictim->GetHealth();
+#endif
     int32 gain = pVictim->ModifyHealth(int32(addhealth));
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Impact(this, pVictim, "heal", spellInfo ? spellInfo->Id : 0, addhealth, raidLabHealthBefore, gain);
+#endif
 
     Unit* unit = this;
 
@@ -9277,6 +9297,10 @@ void Unit::SetHealth(uint32 val)
     if (maxHealth < val)
         val = maxHealth;
 
+
+#ifdef MANTECH_RAID_LAB
+    if (GetHealth() != val) RaidLab::Event(this, "health", val, GetHealth());
+#endif
     SetUInt32Value(UNIT_FIELD_HEALTH, val);
 
     // group update
