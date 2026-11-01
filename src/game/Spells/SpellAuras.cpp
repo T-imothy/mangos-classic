@@ -17,6 +17,7 @@
  */
 
 #include "Memory/EntityLedger.h"
+#include "World/RaidLab.h"
 #include "Common.h"
 #include "Database/DatabaseEnv.h"
 #include "Server/WorldPacket.h"
@@ -4741,7 +4742,15 @@ void Aura::PeriodicTick()
             DETAIL_FILTER_LOG(LOG_FILTER_PERIODIC_AFFECTS, "PeriodicTick: %s heal of %s for %u health inflicted by %u",
                 GetCasterGuid().GetString().c_str(), target->GetGuidStr().c_str(), pdamage, GetId());
 
+            // Periodic healing does not pass through Unit::DealHeal. Preserve
+            // its native mutation and record the actual gain in local trials.
+#ifdef MANTECH_RAID_LAB
+            uint32 const raidLabHealthBefore = target->GetHealth();
+#endif
             int32 gain = target->ModifyHealth(pdamage);
+#ifdef MANTECH_RAID_LAB
+            RaidLab::Impact(pCaster, target, "heal", spellProto->Id, pdamage, raidLabHealthBefore, gain);
+#endif
             SpellPeriodicAuraLogInfo pInfo(this, pdamage, 0, 0, 0.0f);
             target->SendPeriodicAuraLog(&pInfo);
 

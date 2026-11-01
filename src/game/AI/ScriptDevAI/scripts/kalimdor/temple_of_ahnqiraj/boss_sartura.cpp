@@ -143,8 +143,11 @@ struct AQWhirlwind : public SpellScript
         if (!spell->GetTriggeredByAuraSpellInfo())
             return;
 
-        SpellAuraHolder* holder = spell->GetCaster()->GetSpellAuraHolder(spell->GetTriggeredByAuraSpellInfo()->Id);
-        if (holder->m_auras[EFFECT_INDEX_0]->GetAuraTicks() != holder->m_auras[EFFECT_INDEX_0]->GetAuraMaxTicks())
+        // Queued triggered payloads can outlive their parent aura/effect.
+        Aura* periodic = spell->GetCaster()->GetAura(spell->GetTriggeredByAuraSpellInfo()->Id, EFFECT_INDEX_0);
+        if (!periodic)
+            return;
+        if (periodic->GetAuraTicks() != periodic->GetAuraMaxTicks())
         {
             if (spell->m_spellInfo->Id == SPELL_OTHER_WHIRLWIND_TRIGGER)
                 if (urand(0, 2))

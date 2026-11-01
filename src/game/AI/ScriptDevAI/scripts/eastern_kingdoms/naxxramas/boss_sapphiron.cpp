@@ -220,7 +220,7 @@ struct boss_sapphironAI : public BossAI
     }
 };
 
-bool GOUse_go_sapphiron_birth(Player* /*player*/, GameObject* go)
+bool GOUse_go_sapphiron_birth(Player* player, GameObject* go)
 {
     ScriptedInstance* instance = (ScriptedInstance*)go->GetInstanceData();
 
@@ -234,6 +234,13 @@ bool GOUse_go_sapphiron_birth(Player* /*player*/, GameObject* go)
     if (instance->GetSingleCreatureFromStorage(NPC_SAPPHIRON, true))
         return true;
 
+#ifdef MANTECH_RAID_LAB
+    if (RaidLab::Enabled())
+        sLog.outString("RAID_LAB_SAPPHIRON_ACTIVATION: player=%u controlled=%u gm=%u map=%u instance=%u go=" UI64FMTD,
+            player ? player->GetGUIDLow() : 0, player && RaidLab::Controlled(player) ? 1u : 0u,
+            player && player->IsGameMaster() ? 1u : 0u, go->GetMapId(), go->GetInstanceId(),
+            go->GetObjectGuid().GetRawValue());
+#endif
     // Set data to special and allow the Go animation to proceed
     instance->SetData(TYPE_SAPPHIRON, SPECIAL);
     return false;

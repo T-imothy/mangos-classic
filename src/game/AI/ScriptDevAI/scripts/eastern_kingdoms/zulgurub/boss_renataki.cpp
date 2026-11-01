@@ -52,8 +52,12 @@ struct boss_renatakiAI : public CombatAI
     {
         AddCustomAction(RENATAKI_VANISH_DELAY, true, [&]()
         {
-            if (Unit* target = m_creature->GetMap()->GetUnit(m_vanishTarget))
-                target->CastSpell(m_creature, SPELL_VANISH_TELEPORT, TRIGGERED_OLD_TRIGGERED);
+            Unit* target = m_creature->GetMap()->GetUnit(m_vanishTarget);
+            if (!target || !target->IsInWorld() || !target->IsAlive() || !m_creature->IsInMap(target))
+                target = m_creature->IsInCombat() ? m_creature->SelectAttackingTarget(ATTACKING_TARGET_RANDOM, 0, nullptr, SELECT_FLAG_PLAYER) : nullptr;
+            if (!target || target->CastSpell(m_creature, SPELL_VANISH_TELEPORT, TRIGGERED_OLD_TRIGGERED) != SPELL_CAST_OK)
+                m_creature->RemoveAurasDueToSpell(SPELL_VANISH);
+            m_vanishTarget = ObjectGuid();
             SetCombatScriptStatus(false);
             SetMeleeEnabled(true);
             SetCombatMovement(true);
@@ -69,6 +73,8 @@ struct boss_renatakiAI : public CombatAI
 #endif
 
         CombatAI::Reset();
+        DisableTimer(RENATAKI_VANISH_DELAY);
+        m_vanishTarget = ObjectGuid();
 
         SetCombatScriptStatus(false);
         SetMeleeEnabled(true);
@@ -87,10 +93,15 @@ struct boss_renatakiAI : public CombatAI
     {
         if (eventType == AI_EVENT_CUSTOM_A)
         {
-            m_vanishTarget = invoker->GetObjectGuid();
+            m_vanishTarget = invoker ? invoker->GetObjectGuid() : ObjectGuid();
             SetCombatScriptStatus(true);
             SetMeleeEnabled(false);
             SetCombatMovement(false);
+            // The return action was registered but never armed, leaving the
+            // boss's combat script permanently paused after its first Vanish.
+            // Retain the native teleport/stun/thrash payload. The five-second
+            // disappearance also matches AzerothCore's return event timing.
+            ResetTimer(RENATAKI_VANISH_DELAY, 5000u);
         }
     }
 };

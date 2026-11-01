@@ -70,7 +70,10 @@ set_source_files_properties("${_lifecycle_dir}/Engine.cpp" TARGET_DIRECTORY play
 file(READ "${playerbots_SOURCE_DIR}/playerbot/PlayerbotAI.cpp" _lifecycle_text)
 string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
 string(SHA256 _lifecycle_hash "${_lifecycle_text}")
-if(NOT _lifecycle_hash STREQUAL "1eaf4fba01157ff49706cca123603d5b73d3f39cbf6947104652150ac0605048")
+# Local raid candidate: reviewed Classic urgent MC recovery cast admission.
+# Compared with candidate a39bc557: only PrepareForUrgentCombat changed;
+# map/transfer and queue replacement bodies remain unchanged.
+if(NOT _lifecycle_hash STREQUAL "1dd7cf6e394a56cf5e768195360ecfa66faa51eb522c095233970a8714b162ea")
   message(FATAL_ERROR "Review map-lifecycle fix: upstream PlayerbotAI.cpp changed")
 endif()
 mantech_lifecycle_replace(_lifecycle_text [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)

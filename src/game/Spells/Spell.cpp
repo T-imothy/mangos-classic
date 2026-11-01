@@ -3124,6 +3124,12 @@ void Spell::cancel()
 {
     if (m_spellState == SPELL_STATE_FINISHED)
         return;
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Count(m_caster, "spell_cancel", m_spellInfo->Id, uint32(m_spellState), m_targets.getUnitTargetGuid().GetRawValue());
+    if (m_spellState == SPELL_STATE_CASTING && m_casttime > 0 && m_timer > 0 &&
+        m_timer <= uint32(m_casttime) && uint32(m_casttime)-m_timer <= 300)
+        RaidLab::CancelStack(m_caster, m_spellInfo->Id, m_targets.getUnitTargetGuid().GetRawValue(), uint32(m_casttime)-m_timer);
+#endif
 
     // channeled spells don't display interrupted message even if they are interrupted, possible other cases with no "Interrupted" message
     bool sendInterrupt = !(IsChanneledSpell(m_spellInfo) || m_autoRepeat);
@@ -3611,10 +3617,20 @@ void Spell::update(uint32 difftime)
     {
         // always cancel for channeled spells
         if (m_spellState == SPELL_STATE_CHANNELING && m_spellInfo->ChannelInterruptFlags & AURA_INTERRUPT_FLAG_MOVING)
+        {
+#ifdef MANTECH_RAID_LAB
+            RaidLab::Count(m_caster, "spell_cancel:channel_moved", m_spellInfo->Id, uint32(m_spellState));
+#endif
             cancel();
+        }
         // don't cancel for melee, autorepeat, triggered and instant spells
         else if (!IsNextMeleeSwingSpell(m_spellInfo) && !IsAutoRepeat() && !m_IsTriggeredSpell && (m_spellInfo->InterruptFlags & SPELL_INTERRUPT_FLAG_MOVEMENT))
+        {
+#ifdef MANTECH_RAID_LAB
+            RaidLab::Count(m_caster, "spell_cancel:cast_moved", m_spellInfo->Id, uint32(m_spellState));
+#endif
             cancel();
+        }
     }
 
     switch (m_spellState)
@@ -3885,6 +3901,13 @@ void Spell::finish(bool ok)
 
 void Spell::SendCastResult(SpellCastResult result) const
 {
+#ifdef MANTECH_RAID_LAB
+    // Local, bounded aggregate: a failed finish alone cannot distinguish
+    // range, item requirements, bad targets or a real interrupted cast.
+    if (result != SPELL_CAST_OK)
+        RaidLab::Count(m_caster, "native_cast_result", m_spellInfo->Id, uint32(result),
+            m_targets.getUnitTargetGuid().GetRawValue());
+#endif
     if (m_triggeredByAuraSpell) // should not report these
         return;
 

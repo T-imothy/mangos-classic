@@ -7,6 +7,11 @@ PRIMARY KEY(Id)
 
 -- Classic
 INSERT INTO spell_scripts(Id, ScriptName) VALUES
+(26586,'spell_birth_tentacles'),
+(26140,'spell_summon_hook_tentacle'),
+(26216,'spell_summon_giant_hook_tentacles'),
+(26150,'spell_summon_eye_tentacle'),
+(26768,'spell_summon_giant_eye_tentacles'),
 (720,'spell_entangle_fankriss'),
 (731,'spell_entangle_fankriss'),
 (785,'spell_true_fulfillment'),
@@ -219,6 +224,10 @@ INSERT INTO spell_scripts(Id, ScriptName) VALUES
 (28835,'spell_horsemen_mark'),
 (28961,'spell_summon_corpse_scarabs'),
 (29201,'spell_loatheb_corrupted_mind'),
+(29185,'spell_loatheb_corrupted_mind_cooldown'),
+(29194,'spell_loatheb_corrupted_mind_cooldown'),
+(29196,'spell_loatheb_corrupted_mind_cooldown'),
+(29198,'spell_loatheb_corrupted_mind_cooldown'),
 (29252,'spell_summon_skeletons_noth'),
 (29317,'spell_shadowbolt_gothik'),
 (29330,'spell_sapphiron_despawn_buffet'),

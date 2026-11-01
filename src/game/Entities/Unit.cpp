@@ -705,8 +705,17 @@ bool Unit::UpdateMeleeAttackingState()
         }
     }
 
+#ifdef MANTECH_RAID_LAB
+    // Native SWING_ERROR_NOT_IN_RANGE is zero, so the existing nonzero-error
+    // branch below cannot observe it. Record without altering combat behavior.
+    if (!CanReachWithMeleeAttack(victim))
+        RaidLab::Count(this, "native_melee_gate", SWING_ERROR_NOT_IN_RANGE, 0, victim->GetObjectGuid().GetRawValue());
+#endif
     if (swingError)
     {
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Count(this, "native_melee_gate", swingError, 0, victim->GetObjectGuid().GetRawValue());
+#endif
         setAttackTimer(BASE_ATTACK, 100);
         setAttackTimer(OFF_ATTACK, 100);
     }
@@ -2671,6 +2680,10 @@ void Unit::AttackerStateUpdate(Unit* pVictim, WeaponAttackType attType, bool ext
 
     CalcDamageInfo meleeDamageInfo;
     CalculateMeleeDamage(pVictim, &meleeDamageInfo, attType);
+#ifdef MANTECH_RAID_LAB
+    RaidLab::Count(this, "native_melee_outcome", uint32(meleeDamageInfo.hitOutCome),
+        meleeDamageInfo.totalDamage, pVictim->GetObjectGuid().GetRawValue());
+#endif
 
     // Send log damage message to client
     for (uint8 i = 0; i < m_weaponDamageInfo.weapon[attType].lines; i++)
@@ -7994,6 +8007,11 @@ void Unit::SetInCombatState(bool PvP, Unit* enemy)
 
     bool notInCombat = !HasFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_IN_COMBAT);
     bool creatureNotInCombat = GetTypeId() == TYPEID_UNIT && notInCombat;
+
+#ifdef MANTECH_RAID_LAB
+    if (notInCombat)
+        RaidLab::PreparationCombat(this, enemy);
+#endif
 
     // For player itself and his pet during pvp combat enable own combat timer
     if (PvP || creatureNotInCombat)

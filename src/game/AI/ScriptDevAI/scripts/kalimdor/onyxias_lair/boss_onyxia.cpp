@@ -31,7 +31,7 @@ EndScriptData
 enum
 {
     SAY_AGGRO                   = -1249000,
-    SAY_KILL                    = -1249001,
+    SAY_KILL                    = 8287, // Native broadcast_text id; AddOnKillText does not accept script_text ids.
     SAY_PHASE_2_TRANS           = -1249002,
     SAY_PHASE_3_TRANS           = -1249003,
     EMOTE_BREATH                = -1249004,

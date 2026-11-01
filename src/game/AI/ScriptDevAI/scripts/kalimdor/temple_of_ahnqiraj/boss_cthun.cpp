@@ -258,6 +258,8 @@ enum CthunActions
     CTHUN_ACTION_MAX,
     CTHUN_EMERGE,
     CTHUN_WEAKENED_END,
+    CTHUN_WEAKENED_START,
+    CTHUN_FLESH_RETRY,
 };
 
 struct boss_cthunAI : public CombatAI
@@ -269,6 +271,8 @@ struct boss_cthunAI : public CombatAI
         AddCombatAction(CTHUN_EYETENTACLEDELAY, 40000u);
         AddCustomAction(CTHUN_EMERGE, true, [&]() { HandleEmerge(); }, TIMER_ALWAYS);
         AddCustomAction(CTHUN_WEAKENED_END, true, [&]() { HandleEndWeaken(); }, TIMER_COMBAT_COMBAT);
+        AddCustomAction(CTHUN_WEAKENED_START, true, [&]() { HandleWeaken(); }, TIMER_COMBAT_COMBAT);
+        AddCustomAction(CTHUN_FLESH_RETRY, true, [&]() { SummonMissingFleshTentacles(); }, TIMER_COMBAT_COMBAT);
         // Set active in order to be used during the instance progress
         m_creature->SetActiveObjectState(true);
     }
@@ -277,6 +281,9 @@ struct boss_cthunAI : public CombatAI
 
     // Global variables
     uint8 m_fleshTentaclesKilled;
+    ObjectGuid m_fleshTentacleGuids[MAX_FLESH_TENTACLES];
+    bool m_fleshTentaclesDead[MAX_FLESH_TENTACLES]{};
+    bool m_fleshWaveActive = false;
 
     // Body Phase
 
@@ -293,6 +300,12 @@ struct boss_cthunAI : public CombatAI
         CombatAI::Reset();
 
         m_fleshTentaclesKilled    = 0;
+        m_fleshWaveActive = false;
+        for (uint8 i = 0; i < MAX_FLESH_TENTACLES; ++i)
+        {
+            m_fleshTentacleGuids[i].Clear();
+            m_fleshTentaclesDead[i] = false;
+        }
 
         // Clear players in stomach
         m_playersInStomachList.clear();
@@ -367,17 +380,48 @@ struct boss_cthunAI : public CombatAI
 
     void SummonedCreatureJustDied(Creature* summoned) override
     {
-        // Handle Flesh Tentacle kill in stomach
-        if (summoned->GetEntry() == NPC_FLESH_TENTACLE)
+        if (!m_fleshWaveActive || !summoned || summoned->GetEntry() != NPC_FLESH_TENTACLE)
+            return;
+        for (uint8 i = 0; i < MAX_FLESH_TENTACLES; ++i)
         {
+            if (m_fleshTentacleGuids[i] != summoned->GetObjectGuid() || m_fleshTentaclesDead[i])
+                continue;
+            m_fleshTentaclesDead[i] = true;
             ++m_fleshTentaclesKilled;
             if (m_fleshTentaclesKilled == MAX_FLESH_TENTACLES)
                 HandleWeaken();
+            return;
         }
+    }
+
+    void SummonMissingFleshTentacles()
+    {
+        if (!m_fleshWaveActive || !m_creature->IsAlive() || !m_creature->IsInCombat())
+            return;
+        bool missing = false;
+        for (uint8 i = 0; i < MAX_FLESH_TENTACLES; ++i)
+        {
+            if (!m_fleshTentacleGuids[i].IsEmpty() || m_fleshTentaclesDead[i])
+                continue;
+            if (Creature* flesh = m_creature->SummonCreature(NPC_FLESH_TENTACLE,
+                cthunLocations[i][0], cthunLocations[i][1], cthunLocations[i][2], cthunLocations[i][3], TEMPSPAWN_DEAD_DESPAWN, 0))
+                m_fleshTentacleGuids[i] = flesh->GetObjectGuid();
+            else
+                missing = true;
+        }
+        if (missing)
+            ResetTimer(CTHUN_FLESH_RETRY, 1000);
+        else
+            DisableTimer(CTHUN_FLESH_RETRY);
     }
 
     void DoSpawnTentacles()
     {
+        if (m_fleshWaveActive)
+        {
+            SummonMissingFleshTentacles();
+            return;
+        }
         // Tentacles Party... Pleasure !
         DoCastSpellIfCan(nullptr, SPELL_SUMMON_EYE_TENTACLES_P2, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT );
         DoCastSpellIfCan(nullptr, SPELL_SUMMON_MOUTH_TENTACLES_1, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT );
@@ -386,12 +430,22 @@ struct boss_cthunAI : public CombatAI
 
         // Flesh Tentacles inside stomach, two of them
         m_fleshTentaclesKilled = 0;
+        m_fleshWaveActive = true;
         for (uint8 i = 0; i < MAX_FLESH_TENTACLES; ++i)
-            m_creature->SummonCreature(NPC_FLESH_TENTACLE, cthunLocations[i][0], cthunLocations[i][1], cthunLocations[i][2], cthunLocations[i][3], TEMPSPAWN_DEAD_DESPAWN, 0);
+        {
+            m_fleshTentacleGuids[i].Clear();
+            m_fleshTentaclesDead[i] = false;
+        }
+        SummonMissingFleshTentacles();
     }
 
     void StopSpawningTentacles()
     {
+        m_fleshWaveActive = false;
+        DisableTimer(CTHUN_FLESH_RETRY);
+        DisableTimer(CTHUN_WEAKENED_START);
+        DisableCombatAction(CTHUN_CLAWTENTACLEDELAY);
+        DisableCombatAction(CTHUN_EYETENTACLEDELAY);
         // End of the tentacles everywhere. No more pleasure.
         m_creature->RemoveAurasDueToSpell(SPELL_GIANT_EYE_TENTACLES_1);
         m_creature->RemoveAurasDueToSpell(SPELL_SUMMON_EYE_TENTACLES_P2);
@@ -401,19 +455,25 @@ struct boss_cthunAI : public CombatAI
 
     void HandleEmerge()
     {
-        // Transform and start C'Thun phase
-        if (DoCastSpellIfCan(nullptr, SPELL_TRANSFORM) == CAST_OK)
+        if (!m_creature->IsAlive())
+            return;
+        if ((!m_creature->HasAura(SPELL_TRANSFORM) && DoCastSpellIfCan(nullptr, SPELL_TRANSFORM) != CAST_OK) ||
+            (!m_creature->HasAura(SPELL_CARAPACE_CTHUN) &&
+             DoCastSpellIfCan(nullptr, SPELL_CARAPACE_CTHUN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT) != CAST_OK))
         {
-            // Make ready for fight
-            SetReactState(REACT_AGGRESSIVE);
-            DoCastSpellIfCan(nullptr, SPELL_CARAPACE_CTHUN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
-            m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
-            m_creature->SetInCombatWithZone();
+            ResetTimer(CTHUN_EMERGE, 1000);
+            return;
         }
+        SetReactState(REACT_AGGRESSIVE);
+        m_creature->RemoveFlag(UNIT_FIELD_FLAGS, UNIT_FLAG_UNINTERACTIBLE);
+        m_creature->SetInCombatWithZone();
     }
 
     void HandleWeaken()
     {
+        if (!m_creature->IsAlive() || !m_creature->IsInCombat() || !m_fleshWaveActive ||
+            m_fleshTentaclesKilled != MAX_FLESH_TENTACLES)
+            return;
         if (DoCastSpellIfCan(nullptr, SPELL_CTHUN_VULNERABLE, CAST_INTERRUPT_PREVIOUS) == CAST_OK)
         {
             m_creature->RemoveAurasDueToSpell(SPELL_CHECK_RESET_AURA);
@@ -422,13 +482,22 @@ struct boss_cthunAI : public CombatAI
             StopSpawningTentacles();
             ResetTimer(CTHUN_WEAKENED_END, 45 * IN_MILLISECONDS);
         }
+        else
+            ResetTimer(CTHUN_WEAKENED_START, 1000);
     }
 
     void HandleEndWeaken()
     {
-        // Handle carapace and tentacles respawn when the vulnerability spell expires
-        DoCastSpellIfCan(nullptr, SPELL_CARAPACE_CTHUN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
-        DoCastSpellIfCan(nullptr, SPELL_CHECK_RESET_AURA, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT);
+        if (!m_creature->IsAlive() || !m_creature->IsInCombat() || m_fleshWaveActive)
+            return;
+        if ((!m_creature->HasAura(SPELL_CARAPACE_CTHUN) &&
+             DoCastSpellIfCan(nullptr, SPELL_CARAPACE_CTHUN, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT) != CAST_OK) ||
+            (!m_creature->HasAura(SPELL_CHECK_RESET_AURA) &&
+             DoCastSpellIfCan(nullptr, SPELL_CHECK_RESET_AURA, CAST_TRIGGERED | CAST_AURA_NOT_PRESENT) != CAST_OK))
+        {
+            ResetTimer(CTHUN_WEAKENED_END, 1000);
+            return;
+        }
         DoSpawnTentacles();
     }
 

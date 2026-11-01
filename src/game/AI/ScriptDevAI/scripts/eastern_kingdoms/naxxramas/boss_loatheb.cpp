@@ -27,6 +27,7 @@ EndScriptData
 #include "AI/ScriptDevAI/include/sc_common.h"
 #include "AI/ScriptDevAI/base/BossAI.h"
 #include "naxxramas.h"
+#include "Spells/SpellAuras.h"
 
 enum
 {
@@ -121,6 +122,22 @@ struct CorruptedMind : public SpellScript
     }
 };
 
+// The DBC proc flags alone include ordinary priest damage. Corrupted Mind
+// must reserve healing/dispel spells, not keep extending itself while the
+// priest damages the boss or an existing HoT ticks during the lockout.
+struct CorruptedMindCooldown : public AuraScript
+{
+    bool OnCheckProc(Aura* aura, ProcExecutionData& data) const override
+    {
+        if (!aura || !data.spellInfo || !aura->GetTarget() ||
+            aura->GetTarget()->HasOverrideScript(4327) ||
+            data.spellInfo->SpellFamilyName != aura->GetSpellProto()->SpellFamilyName) return false;
+        return IsSpellHaveEffect(data.spellInfo, SPELL_EFFECT_HEAL) ||
+            IsSpellHaveAura(data.spellInfo, SPELL_AURA_PERIODIC_HEAL) ||
+            IsSpellHaveEffect(data.spellInfo, SPELL_EFFECT_DISPEL);
+    }
+};
+
 void AddSC_boss_loatheb()
 {
     Script* newScript = new Script;
@@ -129,4 +146,5 @@ void AddSC_boss_loatheb()
     newScript->RegisterSelf();
 
     RegisterSpellScript<CorruptedMind>("spell_loatheb_corrupted_mind");
+    RegisterSpellScript<CorruptedMindCooldown>("spell_loatheb_corrupted_mind_cooldown");
 }

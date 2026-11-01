@@ -148,7 +148,7 @@ struct boss_ossirianAI : public CombatAI
 
     void DoSpawnNextCrystal(uint32 spawnCount)
     {
-        if (!m_instance)
+        if (!m_instance || !spawnCount)
             return;
 
         GuidVector vector;
@@ -160,7 +160,7 @@ struct boss_ossirianAI : public CombatAI
         std::shuffle(vector.begin(), vector.end(), *GetRandomGenerator());
 
         uint32 spawned = 0;
-        for (uint32 i = 0; i < vector.size() - 1; ++i) // try to find at least one
+        for (uint32 i = 0; i < vector.size(); ++i) // include the final eligible trigger
         {
             // iterate from random roll until either one (should always occur) is found or we run out of crystals
             if (Creature* creature = m_creature->GetMap()->GetCreature(vector[i]))
@@ -178,9 +178,11 @@ struct boss_ossirianAI : public CombatAI
 
     void RespawnFirstCrystal()
     {
+        if (!m_instance)
+            return;
         GuidVector vector;
         m_instance->GetCreatureGuidVectorFromStorage(NPC_OSSIRIAN_TRIGGER, vector);
-        if (vector.size() < 2) // wrong db data
+        if (vector.empty())
             return;
 
         if (Creature* creature = m_creature->GetMap()->GetCreature(vector[0]))

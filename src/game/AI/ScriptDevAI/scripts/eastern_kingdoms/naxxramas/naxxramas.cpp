@@ -125,7 +125,11 @@ void instance_naxxramas::JustDidDialogueStep(int32 entry)
 void instance_naxxramas::OnPlayerEnter(Player* player)
 {
     // Function only used to summon Sapphiron in case of server reload
-    if (GetData(TYPE_SAPPHIRON) != SPECIAL)
+    // During the native birth animation the timer owns the summon. A player
+    // entering then must not create an early boss followed by a second copy
+    // when that timer expires. After reload the timer is zero, so the existing
+    // SPECIAL-state recovery below still restores the boss.
+    if (GetData(TYPE_SAPPHIRON) != SPECIAL || m_sapphironSpawnTimer)
         return;
 
     // Check if already summoned
@@ -492,6 +496,8 @@ void instance_naxxramas::SetData(uint32 type, uint32 data)
             m_auiEncounter[type] = data;
             break;
         case TYPE_GOTHIK:
+        {
+            const uint32 previousState = m_auiEncounter[type];
             m_auiEncounter[type] = data;
             switch (data)
             {
@@ -514,7 +520,7 @@ void instance_naxxramas::SetData(uint32 type, uint32 data)
                     }
                     break;
                 case FAIL:
-                    if (m_auiEncounter[type] == IN_PROGRESS)
+                    if (previousState == IN_PROGRESS)
                         DoUseDoorOrButton(GO_MILI_GOTH_COMBAT_GATE);
                     DoUseDoorOrButton(GO_MILI_GOTH_ENTRY_GATE);
                     break;
@@ -523,12 +529,13 @@ void instance_naxxramas::SetData(uint32 type, uint32 data)
                     DoUseDoorOrButton(GO_MILI_GOTH_EXIT_GATE);
                     DoUseDoorOrButton(GO_MILI_HORSEMEN_DOOR);
                     // Open the central gate if Gothik is defeated before doing so
-                    if (m_auiEncounter[type] == IN_PROGRESS)
+                    if (previousState == IN_PROGRESS)
                         DoUseDoorOrButton(GO_MILI_GOTH_COMBAT_GATE);
                     StartNextDialogueText(NPC_THANE);
                     break;
             }
             break;
+        }
         case TYPE_FOUR_HORSEMEN:
         {
             // Skip if already set
@@ -541,6 +548,10 @@ void instance_naxxramas::SetData(uint32 type, uint32 data)
                 if (m_horsemenKilled != 4)
                     break;
             }
+            // BossAI::EnterEvadeMode reports FAIL back to this instance before
+            // clearing combat. Commit the shared state before invoking any
+            // horseman's callback, so a wipe cannot recursively reset itself.
+            m_auiEncounter[type] = data;
             if (data == FAIL)
             {
                 m_horsemenKilled = 0;
@@ -554,7 +565,6 @@ void instance_naxxramas::SetData(uint32 type, uint32 data)
                     }
                 }
             }
-            m_auiEncounter[type] = data;
             DoUseDoorOrButton(GO_MILI_HORSEMEN_DOOR);
             // Despawn Horsemen's spirit on FAIL or DONE
             std::vector<uint32> entries = {NPC_SPIRIT_OF_BLAUMEUX, NPC_SPIRIT_OF_MOGRAINE, NPC_SPIRIT_OF_KORTHAZZ, NPC_SPIRIT_OF_ZELIREK};
@@ -861,8 +871,9 @@ void instance_naxxramas::Update(uint32 diff)
     {
         if (m_sapphironSpawnTimer <= diff)
         {
-            if (Player* player = GetPlayerInMap())
-                player->SummonCreature(NPC_SAPPHIRON, sapphironPositions[0], sapphironPositions[1], sapphironPositions[2], sapphironPositions[3], TEMPSPAWN_DEAD_DESPAWN, 0);
+            if (GetData(TYPE_SAPPHIRON) == SPECIAL && !GetSingleCreatureFromStorage(NPC_SAPPHIRON, true))
+                if (Player* player = GetPlayerInMap())
+                    player->SummonCreature(NPC_SAPPHIRON, sapphironPositions[0], sapphironPositions[1], sapphironPositions[2], sapphironPositions[3], TEMPSPAWN_DEAD_DESPAWN, 0);
 
             m_sapphironSpawnTimer = 0;
         }

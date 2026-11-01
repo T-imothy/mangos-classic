@@ -549,6 +549,13 @@ void UnitAI::DetectOrAttack(Unit* who)
         }
 
         AttackStart(who);
+#ifdef MANTECH_RAID_LAB
+        if (m_unit->GetVictim() == who)
+        {
+            RaidLab::Count(m_unit, "native_body_pull", who->GetEntry(), 1, who->GetObjectGuid().GetRawValue());
+            RaidLab::BodyPull(m_unit, who, attackRadius);
+        }
+#endif
     }
     else if (m_unit->GetMap()->IsDungeon())
         m_unit->EngageInCombatWith(who);

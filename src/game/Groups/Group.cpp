@@ -33,6 +33,10 @@
 #include "Maps/MapPersistentStateMgr.h"
 #include "Spells/SpellAuras.h"
 #include "BattleGround/BattleGroundMgr.h"
+#ifdef MANTECH_RAID_LAB
+#include "World/RaidLab.h"
+#include <thread>
+#endif
 #ifdef BUILD_DEPRECATED_PLAYERBOT
 #include "PlayerBot/Base/PlayerbotMgr.h"
 #endif
@@ -392,6 +396,12 @@ bool Group::AddMember(ObjectGuid guid, const char* name, uint8 joinMethod)
 uint32 Group::RemoveMember(ObjectGuid guid, uint8 method)
 {
     Player* player = sObjectMgr.GetPlayer(guid);
+#ifdef MANTECH_RAID_LAB
+    if (RaidLab::Enabled())
+        sLog.outString("RAID_LAB_ROSTER: remove group=%u player=%u slots=%u method=%u thread=%llu",m_Id,guid.GetCounter(),GetMembersCount(),method,
+            static_cast<unsigned long long>(std::hash<std::thread::id>{}(std::this_thread::get_id())));
+    RaidLab::Event(player, "group_member_remove", method, GetMembersCount());
+#endif
 #ifdef BUILD_DEPRECATED_PLAYERBOT
     // if master leaves group, all bots leave group
     if (player && player->GetPlayerbotMgr())
@@ -843,6 +853,11 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant)
 
 bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint8 group)
 {
+#ifdef MANTECH_RAID_LAB
+    if (RaidLab::Enabled())
+        sLog.outString("RAID_LAB_ROSTER: add_begin group=%u player=%u slots=%u thread=%llu",m_Id,guid.GetCounter(),GetMembersCount(),
+            static_cast<unsigned long long>(std::hash<std::thread::id>{}(std::this_thread::get_id())));
+#endif
     if (IsFull())
         return false;
 
@@ -864,6 +879,12 @@ bool Group::_addMember(ObjectGuid guid, const char* name, bool isAssistant, uint
     member.assistant = isAssistant;
     member.lastMap   = lastMap;
     m_memberSlots.push_back(member);
+
+#ifdef MANTECH_RAID_LAB
+    if (RaidLab::Enabled())
+        sLog.outString("RAID_LAB_ROSTER: add_inserted group=%u player=%u slots=%u thread=%llu",m_Id,guid.GetCounter(),GetMembersCount(),
+            static_cast<unsigned long long>(std::hash<std::thread::id>{}(std::this_thread::get_id())));
+#endif
 
     SubGroupCounterIncrease(group);
 
