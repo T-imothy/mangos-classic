@@ -18,6 +18,7 @@ code=r'''
 #include <map>
 #include <set>
 #include <iostream>
+#include "__RAID_LAB_HEADER__"
 using uint32=unsigned;using ObjectGuid=unsigned;using GuidVector=std::vector<unsigned>;
 enum {SAY_REINFORCEMENTS_1,SAY_REINFORCEMENTS_2,UNIT_FIELD_FLAGS,UNIT_FLAG_UNINTERACTIBLE,
 UNIT_STAND_STATE_CUSTOM,UNIT_STAND_STATE_STAND,CAST_TRIGGERED,CAST_AURA_NOT_PRESENT,TRIGGERED_OLD_TRIGGERED,CAST_OK};
@@ -62,7 +63,7 @@ int main(){
  ai.HandlePhaseTransition();assert(ai.m_phase==PHASE_SUBMERGED&&ai.timers[0]==1000); // fast clear during 3s animation
  std::cout<<"PASS: native phase timing, late-wave deaths, duplicate/stale callbacks, eight actual summons, rapid Sons clear\n";
 }
-'''.replace('__METHODS__',methods)
+'''.replace('__METHODS__',methods).replace('__RAID_LAB_HEADER__',(root/'src/game/World/RaidLab.h').as_posix())
 with tempfile.TemporaryDirectory(prefix='native-ragnaros-') as folder:
  d=Path(folder);(d/'test.cpp').write_text(code)
  compiler=os.environ.get('CXX') or ('cl' if shutil.which('cl') else 'c++')

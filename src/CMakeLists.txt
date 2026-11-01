@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "3330b748e5d28d52680bfc674689277f0f16358d" # ManTech baseline: coordinated BWL roles, suppression devices and trash mechanics
+        GIT_TAG "584adb97408e141f385daef53e2906294fb5202b" # ManTech baseline: coordinated BWL roles, suppression devices and trash mechanics
   )
 
   FetchContent_GetProperties(PlayerBots)
