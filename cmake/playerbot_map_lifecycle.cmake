@@ -72,7 +72,7 @@ string(REPLACE "\r\n" "\n" _lifecycle_text "${_lifecycle_text}")
 string(SHA256 _lifecycle_hash "${_lifecycle_text}")
 # Reviewed Classic BG start/resurrection wakeup call after completed movement.
 # Map/transfer and queue replacement bodies remain unchanged.
-if(NOT _lifecycle_hash STREQUAL "7e4b86888919fb4a677b8daf884d89d6573255bfc958d2e660fb43cf16aaf288")
+if(NOT _lifecycle_hash STREQUAL "1c12e307d63f6def667b3b6704f49f61e100fc341809667defdcaaafa181d07f")
   message(FATAL_ERROR "Review map-lifecycle fix: upstream PlayerbotAI.cpp changed")
 endif()
 mantech_lifecycle_replace(_lifecycle_text [==[Unit* PlayerbotAI::GetUnit(ObjectGuid guid)
