@@ -186,6 +186,7 @@ if(WIN32 AND MSVC AND BUILD_PLAYERBOTS)
 endif()
 
 add_test(NAME ragnaros_phase COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/ragnaros_phase_regression.py ${CMAKE_SOURCE_DIR})
+add_test(NAME ragnaros_root COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/ragnaros_root_regression.py ${CMAKE_SOURCE_DIR})
 
 add_test(NAME event_abort_lifetime COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tests/event_abort_lifetime_regression.py ${CMAKE_SOURCE_DIR})
 

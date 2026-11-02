@@ -1,6 +1,6 @@
 # Ragnaros script fixes: verified defects, not encounter acceptance
 
-Published for review on 2026-11-02. The user paused raid progression testing. These source changes have not been deployed to a live realm.
+The user paused raid progression testing and then clarified on 2026-11-02 that the verified fixes should be published through the existing Classic live release. This source note does not establish deployment; the coordinated release receipt records the installed binary and restart status.
 
 ## Changes
 
@@ -21,4 +21,4 @@ python tests/ragnaros_root_regression.py .
 python tests/ragnaros_phase_regression.py .
 ```
 
-These checks do not certify the entire fight. Native bot raids still fail; knockback recovery, damage uptime and raid survival need further work. Killing all eight Sons and observing early emergence still needs a complete native acceptance run. The later laboratory checkpoint preserves that unfinished work separately. No live automation, deployment or restart is authorized by this document.
+These checks do not certify the entire fight. Native bot raids still fail; knockback recovery, damage uptime and raid survival need further work. Killing all eight Sons and observing early emergence still needs a complete native acceptance run. The unfinished laboratory work is preserved locally; the temporary publication branches were removed at the user's request. This release retains the existing production playerbots pin and excludes the experimental raid behavior changes. Automated raid testing remains paused.
