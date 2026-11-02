@@ -29,7 +29,7 @@ if(BUILD_PLAYERBOTS)
     PlayerBots
     SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/modules/PlayerBots"
     GIT_REPOSITORY "https://github.com/T-imothy/playerbots.git"
-        GIT_TAG "e67c58027950bbbe60d94a13078a4413b663cfb6" # ManTech baseline: Classic battleground objectives, banner captures and mounted travel
+        GIT_TAG "fda50fb6faab6039202b9e5c31c58f0f39a66065" # ManTech baseline: Classic battleground objectives, banner captures and mounted travel
   )
 
   FetchContent_GetProperties(PlayerBots)
