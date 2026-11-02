@@ -122,7 +122,10 @@ struct boss_ragnarosAI : public CombatAI
         m_bHasYelledMagmaBurst = false;
         m_bHasSubmergedOnce = false;
 
-        m_creature->SetImmobilizedState(true);
+        // Keep the scripted stationary state separate from removable roots.
+        // Frostbite ending clears UNIT_STAT_ROOT; it must not let Ragnaros
+        // chase the raid after Wrath changes his victim.
+        SetAIImmobilizedState(true);
 
         m_creature->HandleEmote(EMOTE_STATE_STAND);
         m_creature->RemoveAurasDueToSpell(SPELL_RAGNA_SUBMERGE);
@@ -134,8 +137,9 @@ struct boss_ragnarosAI : public CombatAI
         DespawnGuids(m_spawns);
     }
 
-    void JustDied(Unit* /*killer*/) override
+    void JustDied(Unit* killer) override
     {
+        CombatAI::JustDied(killer);
         if (m_instance)
             m_instance->SetData(TYPE_RAGNAROS, DONE);
     }
@@ -193,6 +197,14 @@ struct boss_ragnarosAI : public CombatAI
 
     void JustSummoned(Creature* summoned) override
     {
+        // Native wild summons notify through WorldObject and SpellEffects.
+        // Process each creature once: duplicate notifications otherwise count
+        // sixteen Sons and cast each Flame's Intense Heat twice.
+        if (std::find(m_spawns.begin(), m_spawns.end(), summoned->GetObjectGuid()) != m_spawns.end()) return;
+        m_spawns.push_back(summoned->GetObjectGuid());
+#ifdef MANTECH_RAID_LAB
+        RaidLab::Event(m_creature, "ragnaros_unique_summon", summoned->GetEntry(), summoned->GetObjectGuid().GetRawValue());
+#endif
         if (summoned->GetEntry() == NPC_SON_OF_FLAME)
         {
             if (m_phase == PHASE_SUBMERGING || m_phase == PHASE_SUBMERGED)
@@ -209,7 +221,6 @@ struct boss_ragnarosAI : public CombatAI
         else if (summoned->GetEntry() == NPC_FLAME_OF_RAGNAROS)
             summoned->CastSpell(nullptr, SPELL_INTENSE_HEAT, TRIGGERED_OLD_TRIGGERED, nullptr, nullptr, m_creature->GetObjectGuid());
 
-        m_spawns.push_back(summoned->GetObjectGuid());
     }
 
     void SpellHitTarget(Unit* target, const SpellEntry* spellInfo, SpellMissInfo /*missInfo*/) override

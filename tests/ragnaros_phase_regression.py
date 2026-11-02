@@ -30,8 +30,8 @@ constexpr unsigned IN_MILLISECONDS=1000,MINUTE=60,NB_ADDS_IN_SUBMERGE=8;
 unsigned urand(unsigned a,unsigned){return a;}
 struct SonAI{void DoCastSpellIfCan(void*,unsigned,unsigned){}void AttackClosestEnemy(){}};
 struct Creature {unsigned entry=NPC_SON_OF_FLAME,guid=1,stand=0;bool flag=false;std::set<unsigned>auras;SonAI ai;
- unsigned GetEntry(){return entry;}ObjectGuid GetObjectGuid(){return guid;}SonAI*AI(){return &ai;}
- void SetInCombatWithZone(){}void CastSpell(void*,unsigned,unsigned,void*,void*,unsigned){}
+ unsigned heatCasts=0;unsigned GetEntry(){return entry;}ObjectGuid GetObjectGuid(){return guid;}SonAI*AI(){return &ai;}
+ void SetInCombatWithZone(){}void CastSpell(void*,unsigned spell,unsigned,void*,void*,unsigned){if(spell==SPELL_INTENSE_HEAT)++heatCasts;}
  void SetStandState(unsigned n){stand=n;}void SetFlag(unsigned,unsigned){flag=true;}void RemoveFlag(unsigned,unsigned){flag=false;}
  void RemoveAurasDueToSpell(unsigned n){auras.erase(n);}};
 void DoScriptText(unsigned,Creature*){}
@@ -40,12 +40,14 @@ struct Rag {Creature*m_creature;uint32 m_uiAddCount=0,m_phase=PHASE_EMERGED;bool
  void ResetCombatAction(unsigned a,unsigned t){timers[a]=t;disabled.erase(a);}void ReduceTimer(unsigned a,unsigned t){timers[a]=std::min(timers[a],t);}
  void DisableCombatAction(unsigned a){disabled.insert(a);}void SetMeleeEnabled(bool v){melee=v;}
  unsigned DoCastSpellIfCan(Creature*,unsigned spell,unsigned flags=0){
-  if(spell==SPELL_SUMMON_SONS_FLAME){for(unsigned i=0;i<summons;++i){Creature son;son.guid=nextGuid++;JustSummoned(&son);}return CAST_OK;}
+  if(spell==SPELL_SUMMON_SONS_FLAME){for(unsigned i=0;i<summons;++i){Creature son;son.guid=nextGuid++;JustSummoned(&son);JustSummoned(&son);}return CAST_OK;}
   m_creature->auras.insert(spell);return CAST_OK;}
  __METHODS__
 };
 int main(){
  Creature boss;Rag ai{&boss};
+ Creature flame;flame.entry=NPC_FLAME_OF_RAGNAROS;flame.guid=999;
+ ai.JustSummoned(&flame);ai.JustSummoned(&flame);assert(flame.heatCasts==1);
  ai.HandlePhaseTransition();assert(ai.m_phase==PHASE_SUBMERGING&&ai.m_uiAddCount==8&&!ai.melee&&boss.flag&&ai.timers[0]==3000);
  ai.HandlePhaseTransition();assert(ai.m_phase==PHASE_SUBMERGED&&ai.timers[0]==90000);
  // The timer may expire with Sons still alive. Last old Son death after emerge
